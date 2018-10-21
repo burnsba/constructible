@@ -1,0 +1,55 @@
+a={0,0};
+b={1,0};
+c={-1,0};
+d={2,0};
+e={1/2,-(Sqrt[3]/2)};
+f={1/2,Sqrt[3]/2};
+
+Show[
+    Graphics[InfiniteLine[{a,b}]],
+    Graphics[InfiniteLine[{a,c}]],
+    Graphics[InfiniteLine[{a,d}]],
+    Graphics[InfiniteLine[{a,e}]],
+    Graphics[InfiniteLine[{a,f}]],
+    Graphics[InfiniteLine[{b,c}]],
+    Graphics[InfiniteLine[{b,d}]],
+    Graphics[InfiniteLine[{b,e}]],
+    Graphics[InfiniteLine[{b,f}]],
+    Graphics[InfiniteLine[{c,d}]],
+    Graphics[InfiniteLine[{c,e}]],
+    Graphics[InfiniteLine[{c,f}]],
+    Graphics[InfiniteLine[{d,e}]],
+    Graphics[InfiniteLine[{d,f}]],
+    Graphics[InfiniteLine[{e,f}]],
+    Graphics[Circle[a,EuclideanDistance[a,b]]],
+    Graphics[Circle[a,EuclideanDistance[a,c]]],
+    Graphics[Circle[a,EuclideanDistance[a,d]]],
+    Graphics[Circle[a,EuclideanDistance[a,e]]],
+    Graphics[Circle[a,EuclideanDistance[a,f]]],
+    Graphics[Circle[b,EuclideanDistance[b,a]]],
+    Graphics[Circle[b,EuclideanDistance[b,c]]],
+    Graphics[Circle[b,EuclideanDistance[b,d]]],
+    Graphics[Circle[b,EuclideanDistance[b,e]]],
+    Graphics[Circle[b,EuclideanDistance[b,f]]],
+    Graphics[Circle[c,EuclideanDistance[c,a]]],
+    Graphics[Circle[c,EuclideanDistance[c,b]]],
+    Graphics[Circle[c,EuclideanDistance[c,d]]],
+    Graphics[Circle[c,EuclideanDistance[c,e]]],
+    Graphics[Circle[c,EuclideanDistance[c,f]]],
+    Graphics[Circle[d,EuclideanDistance[d,a]]],
+    Graphics[Circle[d,EuclideanDistance[d,b]]],
+    Graphics[Circle[d,EuclideanDistance[d,c]]],
+    Graphics[Circle[d,EuclideanDistance[d,e]]],
+    Graphics[Circle[d,EuclideanDistance[d,f]]],
+    Graphics[Circle[e,EuclideanDistance[e,a]]],
+    Graphics[Circle[e,EuclideanDistance[e,b]]],
+    Graphics[Circle[e,EuclideanDistance[e,c]]],
+    Graphics[Circle[e,EuclideanDistance[e,d]]],
+    Graphics[Circle[e,EuclideanDistance[e,f]]],
+    Graphics[Circle[f,EuclideanDistance[f,a]]],
+    Graphics[Circle[f,EuclideanDistance[f,b]]],
+    Graphics[Circle[f,EuclideanDistance[f,c]]],
+    Graphics[Circle[f,EuclideanDistance[f,d]]],
+    Graphics[Circle[f,EuclideanDistance[f,e]]],
+    PlotRange -> {{-4.5, 5.5}, {-3.5, 3.5}}
+]

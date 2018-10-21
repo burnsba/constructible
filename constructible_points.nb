@@ -1,0 +1,136 @@
+(* lab.open.wolframcloud.com *)
+
+ClearAll[LineLineIntersection, LineCircleIntersection, CircleCircleIntersection, GetIntersections]
+LineLineIntersection::errargs = "Wrong number of arguments.";
+LineLineIntersection::errpoint2 = "Point requires 2 values.";
+LineLineIntersection::errdistinct = "Need distinct points.";
+LineCircleIntersection::errargs = "Wrong number of arguments.";
+LineCircleIntersection::errpoint2 = "Point requires 2 values.";
+LineCircleIntersection::errdistinct = "Need distinct points.";
+LineCircleIntersection::errpositive = "Need value greater than zero.";
+CircleCircleIntersection::errargs = "Wrong number of arguments.";
+CircleCircleIntersection::errpoint2 = "Point requires 2 values.";
+CircleCircleIntersection::errpositive = "Need value greater than zero.";
+CircleCircleIntersection::errsame = "Circles are the same.";
+
+
+(* returns: Nothing, or a point {x,y} *)
+(* example: LineLineIntersection[{{{0,0},{1,1}},{{0,10},{10,0}}}] *)
+(* remarks: http://mathworld.wolfram.com/Line-LineIntersection.html *)
+LineLineIntersection[
+(* line 1 point 1 {x,y} *)p1_,
+(* line 1 point 2 {x,y} *)p2_,
+(* line 2 point 1 {x,y} *)p3_,
+(* line 2 point 2 {x,y} *)p4_] := Module[{d1,d2,d3,dxn,dyn},
+    If[Not[Length[p1]==2],Throw[$Failed, Message[LineLineIntersection::errpoint2]]];
+    If[Not[Length[p2]==2],Throw[$Failed, Message[LineLineIntersection::errpoint2]]];
+    If[Not[Length[p3]==2],Throw[$Failed, Message[LineLineIntersection::errpoint2]]];
+    If[Not[Length[p4]==2],Throw[$Failed, Message[LineLineIntersection::errpoint2]]];
+    If[p1==p2||p3==p4,Throw[$Failed, Message[LineLineIntersection::errdistinct]]];
+
+    ;d1 = Det[{{p1[[1]], p1[[2]]}, {p2[[1]], p2[[2]]}}];
+    ;d2 = Det[{{p3[[1]], p3[[2]]}, {p4[[1]], p4[[2]]}}];
+    ;d3 = Det[{{p1[[1]] - p2[[1]], p1[[2]] - p2[[2]]}, {p3[[1]] - p4[[1]], p3[[2]] - p4[[2]]}}];
+    
+    If[d3 == 0, Return[Nothing, Module]];
+
+    ;dxn = Det[{{d1, p1[[1]] - p2[[1]]}, {d2, p3[[1]] - p4[[1]]}}];
+    ;dyn = Det[{{d1, p1[[2]] - p2[[2]]}, {d2, p3[[2]] - p4[[2]]}}];
+    
+    Return[{dxn / d3, dyn/ d3}, Module];
+]
+LineLineIntersection[args___] := Throw[$Failed, Message[LineLineIntersection::errargs]];
+
+(* returns: Nothing, or a list of 1 point {{x,y}}, or a list of 2 points {{x1,y1},{x2,y2}} *)
+(* example: LineCircleIntersection[{0,0},{1,1},{0,0},1] *)
+(* remarks: http://mathworld.wolfram.com/Circle-LineIntersection.html *)
+LineCircleIntersection[
+(* line 1 point 1 {x,y} *)p1_,
+(* line 1 point 2 {x,y} *)p2_,
+(* circle origin point {x,y} *)cp_,
+(* circle radius x *)cr_] := Module[{},
+    If[Not[Length[p1]==2],Throw[$Failed, Message[LineCircleIntersection::errpoint2]]];
+    If[Not[Length[p2]==2],Throw[$Failed, Message[LineCircleIntersection::errpoint2]]];
+    If[Not[Length[cp]==2],Throw[$Failed, Message[LineCircleIntersection::errpoint2]]];
+    If[p1==p2,Throw[$Failed, Message[LineLineIntersection::errdistinct]]];
+    If[cr<=0,Throw[$Failed, Message[LineLineIntersection::errpositive]]];
+
+    If[p1[[1]] == p2[[1]] && p1[[2]] == p2[[2]], Return[Nothing, Module]];
+    
+    If[p2[[1]] == p1[[1]],
+        (* vertical line *)
+        sol = Solve[{x == p1[[1]] && (x - cp[[1]])^2 + (y - cp[[2]])^2 == cr*cr}, {x, y} , Reals];
+
+        If[Length[sol] == 1 || Length[sol] == 2, Return[{x,y} /. sol, Module]];
+        Return[Nothing, Module];
+    ];
+    
+    If[p2[[2]] == p1[[2]],
+        (* horizontal line *)
+        sol = Solve[{y == p1[[2]] && (x - cp[[1]])^2 + (y - cp[[2]])^2 == cr*cr}, {x, y} , Reals];
+        
+        If[Length[sol] == 1 || Length[sol] == 2, Return[{x,y} /. sol, Module]];
+        Return[Nothing, Module];
+    ];
+    
+    ;sol = Solve[{y - p1[[2]] == (x - p1[[1]])*(p2[[2]] - p1[[2]])/(p2[[1]] - p1[[1]]) && (x - cp[[1]])^2 + (y - cp[[2]])^2 == cr*cr}, {x, y}, Reals];
+    
+    If[Length[sol] == 1 || Length[sol] == 2, Return[{x,y} /. sol, Module]];
+    Return[Nothing, Module];
+]
+LineCircleIntersection[args___] := Throw[$Failed, Message[LineCircleIntersection::errargs]]; 
+
+(* returns: Nothing, or a list of 1 point {{x,y}}, or a list of 2 points {{x1,y1},{x2,y2}} *)
+(* example: CircleCircleIntersection[{0,0},1,{1,0},1] *)
+(* remarks: http://mathworld.wolfram.com/Circle-CircleIntersection.html *)
+CircleCircleIntersection[
+(* circle 1 origin point {x,y} *)c1_,
+(* circle 1 radius x *)c1r_,
+(* circle 2 origin point {x,y} *)c2_,
+(* circle 2 radius x *)c2r_] := Module[{},
+    If[Not[Length[c1]==2],Throw[$Failed, Message[CircleCircleIntersection::errpoint2]]];
+    If[Not[Length[c2]==2],Throw[$Failed, Message[CircleCircleIntersection::errpoint2]]];
+    (* This should throw an exception if the radii are the 
+           same, but going to ignore that since different points
+           can have the same distance (in GetIntersections) *)
+    If[c1==c2,Return[Nothing, Module]];
+    If[c1r<=0,Throw[$Failed, Message[CircleCircleIntersection::errpositive]]];
+    If[c2r<=0,Throw[$Failed, Message[CircleCircleIntersection::errpositive]]];
+
+    ;sol = Solve[{(x - c1[[1]])^2 + (y - c1[[2]])^2 == c1r^2 && (x - c2[[1]])^2 + (y - c2[[2]])^2 == c2r^2}, {x, y}, Reals];
+    
+    If[Length[sol] == 1 || Length[sol] == 2, Return[{x,y} /. sol, Module]];
+    Return[Nothing, Module];
+]
+CircleCircleIntersection[args___] := Throw[$Failed, Message[CircleCircleIntersection::errargs]]; 
+
+GetIntersections[points_] := Module[{results,sp,pairs,duplicatePairs},
+    If[Length[points] < 2, Return[points , Module]];
+    
+    ;sp = Subsets[points, {2}];
+    ;duplicatePairs = ConstantArray[#,2]&/@sp;
+    ;pairs = Subsets[sp, {2}];
+    
+    ;results = points;
+    ;results = Join[
+        results,
+        Flatten[Map[(LineCircleIntersection[#1[[1]][[1]], #1[[1]][[2]], #1[[2]][[1]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, duplicatePairs], 1],
+        Flatten[Map[(LineCircleIntersection[#1[[1]][[1]], #1[[1]][[2]], #1[[2]][[2]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, duplicatePairs], 1],
+        Flatten[Map[(CircleCircleIntersection[#1[[1]][[1]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[1]][[2]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]]])&, duplicatePairs], 1]
+    ];
+    
+    ;results = Join[
+        results,
+        Map[(LineLineIntersection[#1[[1]][[1]], #1[[1]][[2]], #1[[2]][[1]], #1[[2]][[2]]])&, pairs],
+        Flatten[Map[(LineCircleIntersection[#1[[1]][[1]], #1[[1]][[2]], #1[[2]][[1]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]] )&, pairs], 1],
+        Flatten[Map[(LineCircleIntersection[#1[[1]][[1]], #1[[1]][[2]], #1[[2]][[2]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]] )&, pairs], 1],
+        Flatten[Map[(LineCircleIntersection[#1[[2]][[1]], #1[[2]][[2]], #1[[1]][[1]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]]] )&, pairs], 1],
+        Flatten[Map[(LineCircleIntersection[#1[[2]][[1]], #1[[2]][[2]], #1[[1]][[2]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]]] )&, pairs], 1],
+        Flatten[Map[(CircleCircleIntersection[#1[[1]][[1]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[2]][[1]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, pairs], 1],
+        Flatten[Map[(CircleCircleIntersection[#1[[1]][[2]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[2]][[1]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, pairs], 1],
+        Flatten[Map[(CircleCircleIntersection[#1[[1]][[1]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[2]][[2]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, pairs], 1],
+        Flatten[Map[(CircleCircleIntersection[#1[[1]][[2]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[2]][[2]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, pairs], 1]
+    ];
+
+    Return[DeleteDuplicates[results], Module] 
+]
