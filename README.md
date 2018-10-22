@@ -1,7 +1,33 @@
 # constructible
 Constructible number count
 
-This is a project about constructible numbers. Starting with a set of points, count the number of constrible points added after using only a ruler and compass. See https://en.wikipedia.org/wiki/Constructible_number
+This is a project about counting constructible numbers. 
+
+-----
+
+# Background
+
+Starting with some initial points, the following rules are applied:
+
+1. An infinite line can be drawn between two points.  
+2. A circle can be drawn with origin at one point, and radius the Euclidean distance to some second point.  
+3. Any such line-line, line-circle, or circle-circle intersection will yield a new point. 
+
+This is ruler and compass construction as first studied by Greek mathematicians. See https://en.wikipedia.org/wiki/Constructible_number
+
+# Description
+
+This project is focused on counting the number of constructible points from iterating the line and circle generating rules. An iteration is:  
+
+1. Start with a set of points. 
+2. Generate all possible lines and circles from the points in step 1. 
+3. Take the distinct points: intersections of all lines and circles from step 2. 
+4. Count the results.  
+5. Repeat step 1 with the new set of points. 
+
+For example, starting with {{0,0},{1,0}} yields 2,6,203,?
+
+# Files
 
 **constructible_points.nb**
 
@@ -21,6 +47,6 @@ The lines and circles look like
 
 -----
 
-Sequences
+# Sequences
 
 {{0,0}, {1,0}} => 2, 6, 203  
