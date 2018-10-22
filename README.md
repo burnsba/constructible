@@ -11,7 +11,7 @@ Starting with some initial points, the following rules are applied:
 
 1. An infinite line can be drawn between two points.  
 2. A circle can be drawn with origin at one point, and radius the Euclidean distance to some second point.  
-3. Any such line-line, line-circle, or circle-circle intersection will yield a new point. 
+3. Any line-line, line-circle, or circle-circle intersection will yield a new point (a circle can have either one or two intersections). 
 
 This is ruler and compass construction as first studied by Greek mathematicians. See https://en.wikipedia.org/wiki/Constructible_number
 
