@@ -1,0 +1,41 @@
+Overview
+
+This is a project about counting constructible numbers.
+
+See the README in the root project directory for more details.
+
+Description
+
+This README has some implementation notes on the c program.
+
+The primary algorithm
+
+The algorithm for finding constructible points is as follows:
+1) Start with a set of points.
+2) Iterate over every possible pair, and
+3) construct a line, left circle, and right circle from the pair.
+4) Iterate over every possible pair of objects in (3) and,
+5) find the intersections.
+
+This is a straight forward algorithm. The naive upper bound 
+for n points is calculated with:
+    b = 3 * n * (n - 1) / 2
+    the upper bound is then: b * (b - 1)
+    
+See the file upper_bound.c for more details.
+
+Implementation notes
+
+- constructible.c is the main file
+- config settings are in global.h
+- there are some static variables declared in point,line,circle;
+this avoids mpf_init and mpf_clear in the method calls, but
+makes those methods rather unsafe for threading.
+- some tests are run to ensure accurcy, see test.c
+- there is a sample file to ensure GMP is installed correctly,
+see test_gmp.c
+
+License
+
+Copyright (C) 2018 Ben Burns under the MIT License,
+see /LICENSE for details.
