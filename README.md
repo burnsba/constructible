@@ -21,7 +21,7 @@ This project is focused on counting the number of constructible points from iter
 
 1. Start with a set of points.
 2. Iterate over every possible pair, and
-3. construct a line, left circle, and right circle from the pair.
+3. construct a line, left circle, and right circle from the pair (take the distance between the two points, and that's the radius; the circle origin can be at either point).
 4. Iterate over every possible pair of objects in (3) and,
 5. find the intersections.
 
