@@ -132,5 +132,5 @@ GetIntersections[points_] := Module[{results,sp,pairs,duplicatePairs},
         Flatten[Map[(CircleCircleIntersection[#1[[1]][[2]], EuclideanDistance[#1[[1]][[1]],#1[[1]][[2]]], #1[[2]][[2]], EuclideanDistance[#1[[2]][[1]],#1[[2]][[2]]]])&, pairs], 1]
     ];
 
-    Return[DeleteDuplicates[results], Module] 
+    Return[DeleteDuplicates[Simplify[results]], Module]
 ]
