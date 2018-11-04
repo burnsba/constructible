@@ -49,26 +49,26 @@ The lines and circles look like
 
 # Sequences
 
-two points:
+    two points:
+    
+        {0,0},{0,1}
+        2,6,203
 
-{0,0},{0,1}
-2,6,203
+    three points:
 
-three points:
+        right triangle
+        {0,0},{0,1},{1,0}
+        3,28,465793
+        (run time: ~15 seconds)
 
-right triangle
-{0,0},{0,1},{1,0}
-3,28,465793
-(run time: ~15 seconds)
+        equilateral triangle
+        {-1/2,0},{1/2,0},{0,Sqrt[3]/2}
+        3,12,2569
+        (run time: ~1 second)
 
-equilateral triangle
-{-1/2,0},{1/2,0},{0,Sqrt[3]/2}
-3,12,2569
-(run time: ~1 second)
+    four points:
 
-four points:
-
-square
-{0,0},{0,1},{1,0},{1,1}
-4,69,13020491
-(run time: ~530 seconds (~9 minutes) + time to sort ~1,500 MB)
+        square
+        {0,0},{0,1},{1,0},{1,1}
+        4,69,13020491
+        (run time: ~530 seconds (~9 minutes) + time to sort ~1,500 MB)
