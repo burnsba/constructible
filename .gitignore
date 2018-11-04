@@ -1,0 +1,6 @@
+c/data.out
+c/*.o
+c/constructible
+c/upper_bound
+c/test_gmp
+c/*.exe
