@@ -19,15 +19,41 @@ This is ruler and compass construction as first studied by Greek mathematicians.
 
 This project is focused on counting the number of constructible points from iterating the line and circle generating rules. An iteration is:  
 
-1. Start with a set of points. 
-2. Generate all possible lines and circles from the points in step 1. 
-3. Take the distinct points: intersections of all lines and circles from step 2. 
-4. Count the results.  
-5. Repeat step 1 with the new set of points. 
+1. Start with a set of points.
+2. Iterate over every possible pair, and
+3. construct a line, left circle, and right circle from the pair.
+4. Iterate over every possible pair of objects in (3) and,
+5. find the intersections.
 
 For example, starting with {{0,0},{1,0}} yields 2,6,203,?
 
-# Files
+# Sub-projects
+
+This repository has sub-folders based on programming language. There is an implementation
+of the constructible count project in Mathematica, and a sample notebook to plot the points from the
+2-series. The Mathematica project was re-written in c.
+
+## C
+
+See the C folder for specific details, but here are some brief notes on the primary files of interest.
+
+**constructible.c**
+
+Primary file of interest, calculates constructible points using the multiprecision GMP library.
+
+**global.h**
+
+Configuration options for the project are in this file.
+
+**upper_bound.c**
+
+Calculate an upper bound for the sequence of constructible points.
+
+**test_gmp.c**
+
+Compile and run this test file to ensure GMPlib is installed on the machine.
+
+## Mathematica
 
 **constructible_points.nb**
 

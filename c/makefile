@@ -33,4 +33,4 @@ global.o: global.c
 	$(CC) $(CFLAGS) -c global.c $(LIBS)
 
 clean:
-	rm *.o constructible upper_bound
+	rm -f *.o constructible upper_bound
