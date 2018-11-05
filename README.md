@@ -53,23 +53,55 @@ Calculate an upper bound for the sequence of constructible points.
 
 Compile and run this test file to ensure GMPlib is installed on the machine.
 
+## C\#
+
+**ConstructiblePlot**
+
+This is a project used to plot the data points. This accepts the output file from the c constructible project. This can draw the single points, or generate the lines and circles.
+
 ## Mathematica
 
 **constructible_points.nb**
 
 Mathematica notebook to apply ruler and compass construction to a set of points. All possible line-line, line-circle, and circle-circle intersections are generated from initial points.
 
-**constructible_plot.nb**
+# Data
 
-Starting with {0,0} and {1,0} yields six constructible points. These are given at the top of this Mathematica notebook. Then all possible lines and circles are plotted, i.e., the intersections will yield the next iteration of constructible points.
+I have included a Data folder with sample output from the c constructible program. The first line gives the starting points and the iteration number and count. The data files are as follows:  
 
-The 203 points from this look like
+    data-2p,i2.out                => starts from two points, two iterations
+    data-3p,i1-equilateral.out    => starts frpm three points (equilateral triangle), one iteration
+    data-3p,i1-right_triangle.out => starts from three points (right triable), one iteration
+    data-3p,i2-equilateral.out    => starts from three points (equilateral triangle), two iterations
+    data-4p,i1-square.out         => starts from four points (square), one iteration
 
-![203 points symmetric across x and y axes](https://github.com/burnsba/constructible/raw/master/constructible_203.png)  
+# Image
 
-The lines and circles look like
+The C# project was used to generate these images. The file names follow the same convention as the data points above. Some of these images are cropped.  
 
-![plot of constructible lines and circles](https://github.com/burnsba/constructible/raw/master/constructible_lines_circles.png)
+The first iteration of two points yields six points. The construction of lines and circles from these looks like
+
+![lines and circles](https://github.com/burnsba/constructible/raw/master/image/small-2p,i1-lines.jpg)  
+
+The intersection of these lines is the following points
+
+![203 points](https://github.com/burnsba/constructible/raw/master/image/small-2p,i2-points.jpg)  
+
+It gets quite crowded constructing the next iteration of lines and circles
+
+![lines and circles](https://github.com/burnsba/constructible/raw/master/image/small-2p,i2-lines.jpg)  
+
+Starting with three points in an equilateral triangle yields 28 points. The construction of linse and circles from these looks like
+
+![lines and cirlces](https://github.com/burnsba/constructible/raw/master/image/small-3p,i1-equilateral-lines.jpg)  
+
+The intersections of these lines is the following points
+
+![lines and cirlces](https://github.com/burnsba/constructible/raw/master/image/small-3p,i2-equilateral-points.jpg)  
+
+One last image, the resulting intersction points from the first iteration of a square
+
+![69 points](https://github.com/burnsba/constructible/raw/master/image/small-4p,i1-square-points.jpg)  
 
 -----
 
@@ -77,24 +109,24 @@ The lines and circles look like
 
     two points:
     
-        {0,0},{0,1}
+        {0, 0}, {0, 1}
         2,6,203
 
     three points:
 
         right triangle
-        {0,0},{0,1},{1,0}
-        3,28,465793
+        {0, 0}, {0, 1}, {1, 0}
+        3,28,465127
         (run time: ~15 seconds)
 
         equilateral triangle
-        {-1/2,0},{1/2,0},{0,Sqrt[3]/2}
+        {-1, 0}, {1, 0}, {0, Sqrt[3]}
         3,12,2569
         (run time: ~1 second)
 
     four points:
 
         square
-        {0,0},{0,1},{1,0},{1,1}
+        {0, 0}, {0, 1}, {1, 0}, {1, 1}
         4,69,13020491
         (run time: ~530 seconds (~9 minutes) + time to sort ~1,500 MB)
