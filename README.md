@@ -91,7 +91,7 @@ It gets quite crowded constructing the next iteration of lines and circles
 
 ![lines and circles](https://github.com/burnsba/constructible/raw/master/image/small-2p,i2-lines.jpg)  
 
-Starting with three points in an equilateral triangle yields 28 points. The construction of linse and circles from these looks like
+Starting with three points in an equilateral triangle yields 28 points. The construction of lines and circles from these looks like
 
 ![lines and cirlces](https://github.com/burnsba/constructible/raw/master/image/small-3p,i1-equilateral-lines.jpg)  
 
