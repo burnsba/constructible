@@ -149,11 +149,7 @@ void global_circle_free() {
 */
 circle_t* circle_alloc() {
     circle_t* p = malloc(sizeof(circle_t));
-    if(p == NULL)
-    {
-        fprintf(stderr, "Fatal error calling malloc for circle_t.\n");
-        exit(1);
-    }
+    global_exit_if_null(p, "Fatal error calling malloc for circle_t.\n");
     
     memset(p, 0, sizeof(circle_t));
     

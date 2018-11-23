@@ -1,26 +1,14 @@
-Overview
-========
+# Overview
 
 This is a project about counting constructible numbers.
 
 See the README in the root project directory for more details.
 
-Building
-========
-
-There's only one external dependency, and that's GMP. Install
-according to your operating system. The makefile links this 
-with the switch '-lgmp', adjust as necessary. 
-
-This was successfully compiled and run on cygwin with gcc 7.3.0
-and on native debian with gcc 5.3.1.
-
-Description
-===========
+# Description
 
 This README has some implementation notes on the c program.
 
-The primary algorithm
+### The primary algorithm
 
 The algorithm for finding constructible points is as follows:
 1) Start with a set of points.
@@ -36,11 +24,26 @@ for n points is calculated with:
     
 See the file upper_bound.c for more details.
 
-Implementation notes
-====================
+# Implementation notes
+
+Nov 22, 2018:
+
+- Finished major rewrite to use database backend.
+- The appliction is designed to divide work into small chunks.
+- There should be a "root" client that will organize the work to be done.
+- Other clients can connect and work on a piece of the application.
+- Finished rewrite to use .ini file for settings insted of .h file.
+- inih: see https://github.com/benhoyt/inih
+- Divided functionality, app_config hosts app settings,
+contains a database context, which contains database connection
+- The old in-memory method suffered from the same problem as the
+database, which is multiple different points, but the same up
+to epsilon could exist, but this was slightly more rare in memory.
+Wrote a stored procedure consolidate_points to address this.
+
+old implementation notes that are still relevant
 
 - constructible.c is the main file
-- config settings are in global.h
 - there are some static variables declared in point,line,circle;
 this avoids mpf_init and mpf_clear in the method calls, but
 makes those methods rather unsafe for threading.
@@ -48,8 +51,30 @@ makes those methods rather unsafe for threading.
 - there is a sample file to ensure GMP is installed correctly,
 see test_gmp.c
 
-License
-=======
+# Files
+
+- app_config: Application wide settings container. 
+- circle: Two dimensional circle.
+- config.ini: run time settings for application.
+- console: colors for console output.
+- consolidate_points.sql: stored procedure to be run after application finishes.
+- constructible: main application.
+- datamodel: contains application specific database context;
+other methods to be used to interact with database specific to application.
+- global: error, printing, exiting, and other globally available methods.
+- ini: ini parser
+- line: Two dimensional line.
+- list: very simple linked list.
+- mysql_client_test: test to make sure mysql lib is installed.
+- mysql_common: general functions to interact with mysql database.
+- mysql_schema: program to build/clear schema used by application.
+- point: Two dimensional point.
+- starting.points: initial points used to seed application.
+- test: tests performed to make sure point, line, circle calculate intersections correctly.
+- test_gmp: test application to make sure gmplib is installed.
+- upper_bound: generates upper bound for a sequence.
+
+# License
 
 Copyright (C) 2018 Ben Burns under the MIT License,
 see /LICENSE for details.

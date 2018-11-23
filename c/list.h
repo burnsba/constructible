@@ -8,17 +8,20 @@
 #ifndef __LIST_H__
 #define __LIST_H__
 
-typedef struct list {
+// Note: "list_add" conflicted with some method used
+// by mysql, so had to rename everything here.
+
+typedef struct single_linked_list {
     // data will be void* to make this somewhat generic
     void* data;
     
-    struct list* next;
+    struct single_linked_list* next;
     
     // Since items are only inserted at the head,
     // index is also the number of items remaining,
     // which is the length of the list.
     size_t index;
-} list_t;
+} single_linked_list_t;
 
 /*
 * Prepend a new node to the list. Head is updated to the new node.
@@ -31,7 +34,7 @@ typedef struct list {
 *
 * returns: void
 */
-void list_add(list_t** head, void* data, size_t mem_size);
+void single_linked_list_add(single_linked_list_t** head, void* data, size_t mem_size);
 
 /*
 * Remove the head node and free the memory.
@@ -41,6 +44,6 @@ void list_add(list_t** head, void* data, size_t mem_size);
 *
 * returns: the number of nodes removed (0 or 1).
 */
-int list_remove(list_t** head);
+int single_linked_list_remove(single_linked_list_t** head);
 
 #endif

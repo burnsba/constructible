@@ -23,6 +23,8 @@ static mpf_t _t3;
 static mpf_t _t4;
 static mpf_t _t5;
 
+static size_t _str_point_digits;
+
 /*
 * Sets the hash key for the point.
 */
@@ -30,8 +32,10 @@ static void _set_hash_id(point_t*);
 
 /*
 * Initializes some static variables.
+*
+* @str_point_digits: number of digits to use for each axis when storing point as string.
 */
-void global_point_init() {
+void global_point_init(size_t str_point_digits) {
     if (_p_init != 0) {
         return;
     }
@@ -43,6 +47,8 @@ void global_point_init() {
     mpf_init(_t3);
     mpf_init(_t4);
     mpf_init(_t5);
+    
+    _str_point_digits = str_point_digits;
 }
 
 /*
@@ -68,13 +74,16 @@ void global_point_free() {
 */
 point_t* point_alloc() {
     point_t* p = malloc(sizeof(point_t));
-    if (p == NULL)
-    {
-        fprintf(stderr, "Fatal error calling malloc for point_t.\n");
-        exit(1);
-    }
-    
+    global_exit_if_null(p, "Fatal error calling malloc for point_t.\n");
     memset(p, 0, sizeof(point_t));
+    
+    p->str_x = malloc(sizeof(char)*(_str_point_digits+1));
+    global_exit_if_null(p->str_x, "Fatal error calling malloc for point_t->str_x.\n");
+    memset(p->str_x, 0, sizeof(char)*(_str_point_digits+1));
+    
+    p->str_y = malloc(sizeof(char)*(_str_point_digits+1));
+    global_exit_if_null(p->str_y, "Fatal error calling malloc for point_t->str_y.\n");
+    memset(p->str_y, 0, sizeof(char)*(_str_point_digits+1));
     
     return p;
 }
@@ -114,6 +123,8 @@ void point_free(point_t* p) {
     mpf_clear(p->x);
     mpf_clear(p->y);
     p->is_init = 0;
+    free(p->str_x);
+    free(p->str_y);
     free(p);
 }
 
@@ -131,6 +142,8 @@ void point_copy(point_t* copy_to, point_t* copy_from) {
     mpf_set(copy_to->x, copy_from->x);
     mpf_set(copy_to->y, copy_from->y);
     
+    // don't bother copying character buffers, will be recalculated below.
+    
     _set_hash_id(copy_to);
 }
 
@@ -147,6 +160,9 @@ point_t* point_clone(point_t* p) {
     point_init(pnew);
     mpf_set(pnew->x, p->x);
     mpf_set(pnew->y, p->y);
+    
+    // don't bother copying character buffers, will be recalculated below.
+    
     _set_hash_id(pnew);
     
     return pnew;
@@ -187,6 +203,23 @@ void point_set_si(point_t* p, intmax_t x, intmax_t y) {
 }
 
 /*
+* Sets a point's x,y values from string.
+* This updates the point's hash key.
+*
+* @p: Point that will get new x,y values.
+* @x: x value.
+* @y: y value.
+*/
+void point_set_str(point_t* p, const char *x, const char *y) {
+    assert(p->is_init == IS_INIT);
+    
+    mpf_set_str(p->x, x, 10);
+    mpf_set_str(p->y, y, 10);
+    
+    _set_hash_id(p);
+}
+
+/*
 * Sets the point's hash key. This is required
 * to be called before using the hash key.
 *
@@ -209,7 +242,12 @@ static void _set_hash_id(point_t* p) {
     if (global_is_zero(p->y) == 1) {
         mpf_set(p->y, g_zero);
     }
-    gmp_snprintf(p->hash_id, HASH_KEY_LENGTH, "%.*Ff,%.*Ff", HASH_DECIMAL_DIGITS, p->x, HASH_DECIMAL_DIGITS, p->y);
+    
+    memset(p->str_x, 0, (_str_point_digits+1));
+    memset(p->str_y, 0, (_str_point_digits+1));
+    
+    gmp_snprintf(p->str_x, _str_point_digits, "%.*Ff", _str_point_digits, p->x);
+    gmp_snprintf(p->str_y, _str_point_digits, "%.*Ff", _str_point_digits, p->y);
 }
 
 /*
@@ -298,6 +336,40 @@ void point_printfn(point_t* p, size_t n_digits) {
 */
 void point_fprintf(FILE* fp, point_t* p, size_t n_digits) {
     gmp_fprintf(fp, "%.*Ff,%.*Ff\n", n_digits, p->x, n_digits, p->y);
+}
+
+/*
+* Writes x value of the point to character buffer in "the usual way."
+*
+* @buffer: Buffer to write to.
+* @buffer_len: maximum number of characters to write.
+* @p: Point to print.
+* @n_digits: Precision to be used by gmp_printf.
+*
+* returns: The return value is the total number of characters which 
+* ought to have been produced, excluding the terminating null. If 
+* retval >= size then the actual output has been truncated to the 
+* first size-1 characters, and a null appended.
+*/
+int point_x_snprintf(char* buffer, size_t buffer_len, point_t* p, size_t n_digits) {
+    return gmp_snprintf(buffer, buffer_len, "%.*Ff", n_digits, p->x);
+}
+
+/*
+* Writes y value of the point to character buffer in "the usual way."
+*
+* @buffer: Buffer to write to.
+* @buffer_len: maximum number of characters to write.
+* @p: Point to print.
+* @n_digits: Precision to be used by gmp_printf.
+*
+* returns: The return value is the total number of characters which 
+* ought to have been produced, excluding the terminating null. If 
+* retval >= size then the actual output has been truncated to the 
+* first size-1 characters, and a null appended.
+*/
+int point_y_snprintf(char* buffer, size_t buffer_len, point_t* p, size_t n_digits) {
+    return gmp_snprintf(buffer, buffer_len, "%.*Ff", n_digits, p->y);
 }
 
 /*

@@ -1,0 +1,8 @@
+; comments start with leading ;
+; each line is a point
+; x,y values are comma separated
+; gmplib will ignore whitespace when parsing from string
+; the name of this file is set in config.ini: STARTING_POINTS_FILE
+; max line length is set in config.ini: STARTING_POINTS_FILE_LINE_BUFFER
+0,0
+1,0

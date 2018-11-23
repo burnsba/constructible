@@ -41,7 +41,7 @@ See the C folder for specific details, but here are some brief notes on the prim
 
 Primary file of interest, calculates constructible points using the multiprecision GMP library.
 
-**global.h**
+**config.ini**
 
 Configuration options for the project are in this file.
 
