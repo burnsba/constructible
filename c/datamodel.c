@@ -9,7 +9,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
 #include <sys/time.h>
+#else
+#include <time.h>
+#endif
 #include <mysql.h>
 
 #include "mysql_common.h"

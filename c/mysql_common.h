@@ -10,6 +10,7 @@
 #define __MYSQL_COMMON_H__
 
 #include <mysql.h>
+#include <stdint.h>
 
 typedef struct mysql_connection {
     char* db_server;

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <mysql.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "global.h"
 #include "mysql_common.h"
