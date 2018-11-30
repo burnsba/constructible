@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "list.h"
+#include "global.h"
 
 /*
 * Prepend a new node to the list. Head is updated to the new node.
@@ -22,14 +23,11 @@
 *
 * returns: void
 */
-void list_add(list_t** head, void* data, size_t mem_size) {
-    list_t* new_node;
+void single_linked_list_add(single_linked_list_t** head, void* data, size_t mem_size) {
+    single_linked_list_t* new_node;
     new_node = malloc(mem_size);
     
-    if (new_node == NULL) {
-        fprintf(stderr, "Fatal error calling malloc for list_t.\n");
-        exit(1);
-    }
+    global_exit_if_null(new_node, "Fatal error calling malloc for single_linked_list_t.\n");
     
     memset(new_node, 0, mem_size);
 
@@ -51,8 +49,8 @@ void list_add(list_t** head, void* data, size_t mem_size) {
 *
 * returns: the number of nodes removed (0 or 1).
 */
-int list_remove(list_t** head) {
-    list_t* next_node = NULL;
+int single_linked_list_remove(single_linked_list_t** head) {
+    single_linked_list_t* next_node = NULL;
 
     if (*head == NULL) {
         return 0;

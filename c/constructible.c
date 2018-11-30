@@ -9,150 +9,205 @@
 #include <stdio.h> // recommended to include stdio before gmp
 #include <gmp.h>
 #include <sys/time.h>
+#include <string.h>
 #include <unistd.h>
+#include <mysql.h>
+#include <stdlib.h>
 
+#include "app_config.h"
+#include "mysql_common.h"
+#include "datamodel.h"
 #include "global.h"
 #include "point.h"
 #include "line.h"
 #include "circle.h"
 #include "test.h"
-#include "uthash.h"
 #include "list.h"
+#include "ini.h"
 
-int add_if_new_else_free(point_t**, point_t**);
-int add_line_x_line(point_t**, line_t*, line_t*);
-int add_circle_x_line(point_t**, circle_t*, line_t*);
-int add_circle_x_circle(point_t**, circle_t*, circle_t*);
-void incremental_file_write(point_t* p);
+app_config_t* _app_config;
+//size_t _queries_since_commit = 0;
 
-int add_line_x_line(point_t** known_points, line_t* line_one, line_t* line_two) {
+// track current iteration number
+uint8_t _current_iteration = 0;
+int8_t _v = 0;
+
+int add_to_known_and_free(db_context_t* context, point_t** p);
+int add_line_x_line(db_context_t* context, line_t*, line_t*);
+int add_circle_x_line(db_context_t* context, circle_t*, line_t*);
+int add_circle_x_circle(db_context_t* context, circle_t*, circle_t*);
+
+int add_line_x_line(db_context_t* context, line_t* line_one, line_t* line_two) {
     point_t* ip1 = NULL;
     int newly_added_points = 0;
     int result = 0;
     
-    if (PRINT_OBJECT_DESCRIPTION_IN_INTERSECTION_CHECK) {
+    if (_app_config->print_object_description_in_intersection_check) {
         printf("check ");
-        line_printf(line_one, PRINT_DIGITS);
+        line_printf(line_one, _app_config->print_digits);
         printf(" x ");
-        line_printfn(line_two, PRINT_DIGITS);
+        line_printfn(line_two, _app_config->print_digits);
     }
     
     result = line_intersection_line(line_one, line_two, &ip1);
     
-    if (PRINT_NUMBER_INTERSECTIONS_FOUND) {
+    if (_app_config->print_number_intersections_found) {
         printf("%d intersections found.\n", result);
     }
     
-    newly_added_points += add_if_new_else_free(known_points, &ip1);
+    newly_added_points += add_to_known_and_free(context, &ip1);
     
     return newly_added_points;
 }
 
-int add_circle_x_line(point_t** known_points, circle_t* c1, line_t* line) {
+int add_circle_x_line(db_context_t* context, circle_t* c1, line_t* line) {
     point_t* ip1 = NULL;
     point_t* ip2 = NULL;
     int newly_added_points = 0;
     int result = 0;
     
-    if (PRINT_OBJECT_DESCRIPTION_IN_INTERSECTION_CHECK) {
+    if (_app_config->print_object_description_in_intersection_check) {
         printf("check ");
-        circle_printf(c1, PRINT_DIGITS);
+        circle_printf(c1, _app_config->print_digits);
         printf(" x ");
-        line_printfn(line, PRINT_DIGITS);
+        line_printfn(line, _app_config->print_digits);
     }
     
     result = circle_intersection_line(c1, line, &ip1, &ip2);
 
-    if (PRINT_NUMBER_INTERSECTIONS_FOUND) {
+    if (_app_config->print_number_intersections_found) {
         printf("%d intersections found.\n", result);
     }
 
-    newly_added_points += add_if_new_else_free(known_points, &ip1);
-    newly_added_points += add_if_new_else_free(known_points, &ip2);
+    newly_added_points += add_to_known_and_free(context, &ip1);
+    newly_added_points += add_to_known_and_free(context, &ip2);
     
     return newly_added_points;
 }
 
-int add_circle_x_circle(point_t** known_points, circle_t* c1, circle_t* c2) {
+int add_circle_x_circle(db_context_t* context, circle_t* c1, circle_t* c2) {
     point_t* ip1 = NULL;
     point_t* ip2 = NULL;
     int newly_added_points = 0;
     int result = 0;
     
-    if (PRINT_OBJECT_DESCRIPTION_IN_INTERSECTION_CHECK) {
+    if (_app_config->print_object_description_in_intersection_check) {
         printf("check ");
-        circle_printf(c1, PRINT_DIGITS);
+        circle_printf(c1, _app_config->print_digits);
         printf(" x ");
-        circle_printfn(c2, PRINT_DIGITS);
+        circle_printfn(c2, _app_config->print_digits);
     }
     
     result = circle_intersection_circle(c1, c2, &ip1, &ip2);
 
-    if (PRINT_NUMBER_INTERSECTIONS_FOUND) {
+    if (_app_config->print_number_intersections_found) {
         printf("%d intersections found.\n", result);
     }
 
-    newly_added_points += add_if_new_else_free(known_points, &ip1);
-    newly_added_points += add_if_new_else_free(known_points, &ip2);
+    newly_added_points += add_to_known_and_free(context, &ip1);
+    newly_added_points += add_to_known_and_free(context, &ip2);
     
     return newly_added_points;
 }
 
 // returns the number of added points
-int add_if_new_else_free(point_t** p_point_hash, point_t** p) {
-    point_t* s;
+int add_to_known_and_free(db_context_t* context, point_t** p) {
     point_t* ip = *p;
-    
+    int result = 0;
     if (ip != NULL) {
-        point_ensure_hash(ip);
-        
-        // has intersection point been seen before?
-        HASH_FIND_STR(*p_point_hash, ip->hash_id, s);
-        if (s == NULL) {
-            // not seen, add to list
-            
-            if (PRINT_ADDING_COORDS) {
-                printf("Adding: %s\n", ip->hash_id);
-            }
-            
-            HASH_ADD_STR(*p_point_hash, hash_id, ip);
-            
-            incremental_file_write(ip);
-            
-            return 1;
-        } else {
-            point_free(ip);
-            *p = NULL;
-        }
+        result = db_insert_known_set(context, ip);
+        point_free(ip);
+        *p = NULL;
     }
     
-    return 0;
+    //_queries_since_commit++;
+    //if (_queries_since_commit > _app_config->queries_between_commits) {
+    //    if (_app_config->show_when_commit) {
+    //        printf("commit (db_insert_known_set)\n");
+    //    }
+    //    db_context_commit(context);
+    //    _queries_since_commit = 0;
+    //}
+    
+    return result;
 }
 
-void incremental_file_write(point_t* p) {
-    if (INCREMENTAL_WRITE_POINTS_TO_FILE) {
-                
-        FILE *fp;
-        fp = fopen(INCREMENTAL_OUTPUT_FILENAME, "a+");
+void load_starting_points(single_linked_list_t** p_starting_set, char* filename, size_t line_buffer_size) {
+    
+    size_t half_buffer_size = line_buffer_size / 2;
+    ssize_t read_len;
+    size_t buffer_len;
+    
+    char* line_buffer = malloc(sizeof(char) * line_buffer_size);
+    global_exit_if_null(line_buffer, "Fatal error calling malloc for line_buffer.\n");
+    char* xbuff = malloc(sizeof(char) * half_buffer_size);
+    global_exit_if_null(xbuff, "Fatal error calling malloc for xbuff.\n");
+    char* ybuff = malloc(sizeof(char) * half_buffer_size);
+    global_exit_if_null(ybuff, "Fatal error calling malloc for ybuff.\n");
+    
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        global_error_printf("Could not open '%s' for reading\n", filename);
+        exit(1);
+    }
+    
+    while ((read_len = getline(&line_buffer, &buffer_len, fp)) != -1) {
+        if (line_buffer[0] == ';') {
+            continue;
+        }
+        memset(xbuff, 0, half_buffer_size);
+        memset(ybuff, 0, half_buffer_size);
         
-        if (NULL == fp) {
-            fprintf(stderr, "Fatal error opening %s for output.\n", INCREMENTAL_OUTPUT_FILENAME);
+        char* comma = strchr(line_buffer, (int)',');
+        if (comma == NULL) {
+            global_error_printf("Error parsing line: %s\n", line_buffer);
+            continue;
+        }
+        
+        if (comma < line_buffer) {
+            global_error_printf("Invalid pointer arithmetic\n");
             exit(1);
         }
         
-        point_fprintf(fp, p, HASH_DECIMAL_DIGITS);
-        fclose(fp);
+        if (read_len < (comma - line_buffer)) {
+            global_error_printf("Invalid pointer arithmetic/line read\n");
+            exit(1);
+        }
+        
+        strncpy(xbuff, line_buffer, comma - line_buffer);
+        strncpy(ybuff, comma + 1, read_len - (comma - line_buffer));
+        
+        //printf("read: %s\n", line_buffer);
+        //printf("x: %s\n", xbuff);
+        //printf("y: %s\n", ybuff);
+        //printf("\n");
+        
+        point_t* p1 = point_alloc();
+        point_init(p1);
+        point_set_str(p1, xbuff, ybuff);
+        single_linked_list_add(p_starting_set, p1, sizeof(single_linked_list_t));
     }
+    
+    fclose(fp);
+    free(xbuff);
+    free(ybuff);
+    free(line_buffer);
 }
 
 int main() {
     
+    // read ini
+    _app_config = app_config_from_ini("config.ini");
+    printf("read config.ini\n");
+    app_config_printf(_app_config);
+    
     // init
     
-    global_init(PRECISION_BITS);
-    global_point_init();
+    global_init(_app_config->gmp_precision_bits, _app_config->str_init_epsilon);
+    global_point_init(_app_config->str_point_digits);
     global_line_init();
     global_circle_init();
+    global_datamodel_init();
     
     // verify
     test_run();
@@ -160,12 +215,6 @@ int main() {
     // done initializing.
     
     // declare variables to work with
-    
-    // track current iteration number
-    int current_iteration = 0;
-    
-    // track the results for each iteration
-    size_t iteration_count[MAX_ITERATIONS+1];
     
     // reused variable, return value for functions
     int result;
@@ -188,103 +237,140 @@ int main() {
     
     // Setup a preliminary list to load initial starting points.
     // Duplicates will be ignored.
-    list_t* starting_set = NULL;
+    single_linked_list_t* starting_set = NULL;
     
     // Primary list used during iteration.
-    list_t* working_set = NULL;
-    
-    // Hash of all known points.
-    point_t* known_points = NULL;
+    single_linked_list_t* working_set = NULL;
     
     // node to iterate starting set.
-    list_t* n1;
+    single_linked_list_t* n1;
     
     // Iterate the working_set 4 times, one for each point.
-    list_t* p1_node, *p2_node, *p3_node, *p4_node;
+    single_linked_list_t* p1_node, *p2_node, *p3_node, *p4_node;
     
     // Variables for watching elapsed time since last 
     // status update.
-    struct timeval start_tv, tv1, tv2;
-    double update_elapsed;
+    struct timeval start_tv, tv2;
+    double next_status_update_time;
+    double next_checkpoint_time;
     double total_elapsed;
-        
-    // inititalize objects
     
-    memset(iteration_count, 0, (MAX_ITERATIONS+1)*sizeof(size_t));
+    size_t loop4_count = 0;
     
+    // Current assigned work.
+    run_status_t* current_job = NULL;
+    
+    //      
     mpf_init(d1);
     mpf_init(d2);
     
-    // truncate incremental output file
-    if (INCREMENTAL_WRITE_POINTS_TO_FILE) {
-        FILE *file = fopen(INCREMENTAL_OUTPUT_FILENAME, "w");
-        fclose(file);
-    }
+    // database connection; connect or exit.
+    db_context_connect(_app_config->context);
     
-    // setup starting conditions
+    // make commit explicit. This will save on disk i/o,
+    // which should make a big difference in throughput, at the
+    // risk of losing information (power failure, etc).
+    // And of course, now need to explicitly commit changes.
+    //mysql_autocommit(_app_config->context->connection->con, 0);
     
-    // set signed int point like so:
-    //p1 = point_alloc();
-    //point_init(p1);
-    //point_set_si(p1, 1, 0);
-    //list_add(&starting_set, p1, sizeof(list_t));
+    // Check to see if there are any points to work with.
+    count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_working);
     
-    // gmp str set point:
-    //p1 = point_alloc();
-    //point_init(p1);
-    //mpf_set_str(d1, "-0.5", 10);
-    //point_set(p1, d1, g_zero);
-    //list_add(&starting_set, p1, sizeof(list_t));
-    
-    // gmp sqrt/2 point:
-    //p1 = point_alloc();
-    //point_init(p1);
-    //mpf_sqrt_ui(d1, 3); 
-    //mpf_div_ui(d2, d1, 2); 
-    //point_set(p1, g_zero, d2);
-    //list_add(&starting_set, p1, sizeof(list_t));
-        
-    p1 = point_alloc();
-    point_init(p1);
-    point_set_si(p1, 0, 0);
-    list_add(&starting_set, p1, sizeof(list_t));
-        
-    p1 = point_alloc();
-    point_init(p1);
-    point_set_si(p1, 0, 1);
-    list_add(&starting_set, p1, sizeof(list_t));
-    
-    // load initial points into working_set
-    
-    printf("Starting with the following points: \n");
-    
-    for (n1 = starting_set; n1 != NULL; n1=n1->next) {
-        point_t* s;
-        p1 = n1->data;
-        HASH_FIND_STR(known_points, p1->hash_id, s);
-        if (s == NULL) {
-            point_printfn(p1, PRINT_DIGITS);
-            HASH_ADD_STR(known_points, hash_id, p1);
-            // note: known_points and working_set need different references for point
-            p2 = point_clone(p1);
-            list_add(&working_set, p2, sizeof(list_t));
-            newly_added_points++;
-            
-            incremental_file_write(p1);
-        }
-    }
-    
-    iteration_count[0] = newly_added_points;
-    
-    printf("\n");
-    
+    // (set the start time once, in case client quits early).
     gettimeofday(&start_tv, NULL);
-    gettimeofday(&tv1, NULL);
     
-    // main loop
-    for (current_iteration=1; current_iteration<=MAX_ITERATIONS; current_iteration++) {
+    if (count == 0) {
+        // regular client can't do anything about no points, so quit.
+        if (_app_config->client_id != ROOT_CLIENT_ID) {
+            printf("Couldn't find work to start. Exiting.\n");
+            goto EXIT_LOOP;
+        }
         
+        // else, this is root, do initial seed.
+        // load starting points
+        printf("Loading starting points from file.\n");
+        load_starting_points(&starting_set,
+            _app_config->starting_points_file,
+            _app_config->starting_points_file_line_buffer);
+
         newly_added_points = 0;
+        for (n1 = starting_set; n1 != NULL; n1=n1->next) {
+            p1 = n1->data;
+            newly_added_points += db_insert_known_set(_app_config->context, p1);
+        }
+        
+        if (newly_added_points == 0) {
+            printf("Couldn't find starting points to load. Exiting.\n");
+            goto EXIT_LOOP;
+        }
+        
+        printf("\n");
+    }
+    
+    // Set time values for status updates.
+    gettimeofday(&start_tv, NULL);
+    
+    next_status_update_time = (double)(start_tv.tv_sec) + (double)(_app_config->update_interval_sec);
+    next_checkpoint_time = (double)(start_tv.tv_sec) + (double)(_app_config->checkpoint_interval_sec);
+    
+    // Ready to start. On to main loop.
+    // Book keeping in outer main loop.
+    while (1) {
+        current_job = db_checkout_work(
+            _app_config->context, 
+            _app_config->batch_id, 
+            _app_config->client_id);
+            
+        // couldn't checkout anything.
+        if (current_job == NULL) {
+            // Regular client can't do anything
+            if (_app_config->client_id != ROOT_CLIENT_ID) {
+                printf("Client found no available work. batch_id=%d\n",
+                    _app_config->batch_id);
+                break;
+            }
+            
+            root_batch_status_t root_status;
+            db_get_root_batch_status(_app_config->context, _app_config->batch_id, &root_status);
+            
+            // Wait for everyone to finish before advancing iteration.
+            if (root_status.is_currently_running == 1 || root_status.any_incomplete == 1) {
+                #warning check for hung tasks.
+                
+                sleep(5);
+                continue;
+            }
+            
+            _current_iteration = root_status.last_complete_iteration + 1;
+            
+            if (_current_iteration > _app_config->max_iterations) {
+                printf("All available work is complete. last_complete_iteration=%d, batch_id=%d\n",
+                    _current_iteration,
+                    _app_config->batch_id);
+                break;
+            }
+            
+            printf("Promoting known points.\n");
+            db_copy_known_to_working(_app_config->context, _current_iteration);
+            
+            printf("Creating new tasks.\n");
+            db_create_tasks(_app_config->context, _app_config->batch_id, _current_iteration);
+            
+            printf("\n");
+            
+            continue;
+        }
+        
+        // Got some work to do.
+        newly_added_points = 0;
+        
+        // Load working set into memory.
+        int64_t after_id = 0;
+        after_id = working_set == NULL ? 0 : working_set->index;
+        db_get_working_set(_app_config->context, &working_set, after_id);
+        
+        // Do work.
+        printf("Doing work on point_id=%ld.\n", current_job->point_id);
         
         /*
         * The algorithm for finding constructible points is as follows:
@@ -308,7 +394,19 @@ int main() {
         * 6.3) Repeat at step (1) until the required number of iterations.
         */
         
-        for (p1_node = working_set, p1_count=0; p1_node != NULL; p1_node = p1_node->next, p1_count++) {
+        // Iterate over the working_set of points, and find the point
+        // assigned to this checkout task.
+        p1_node = working_set;
+        while (((point_t*)p1_node->data)->point_id != current_job->point_id) {
+            p1_node = p1_node->next;
+            if (p1_node == NULL) {
+                global_error_printf("Could not find point_id=%ld in working_set.\n", current_job->point_id);
+                goto EXIT_LOOP;
+            }
+        }
+        
+        // Inner loop where the points are constructed.
+        for (p1_count=0; p1_node != NULL; p1_node = p1_node->next, p1_count++) {
             for (p2_node = p1_node->next, p2_count=0; p2_node != NULL; p2_node = p2_node->next, p2_count++) {
                 p1 = (point_t*)p1_node->data;
                 p2 = (point_t*)p2_node->data;
@@ -335,43 +433,108 @@ int main() {
                 // Self intersections for left points (three total)
                 
                 // (x1)
-                newly_added_points += add_circle_x_line(&known_points, left_circle1, left_line);
+                newly_added_points += add_circle_x_line(_app_config->context, left_circle1, left_line);
                 
                 // (x2)
-                newly_added_points += add_circle_x_line(&known_points, left_circle2, left_line);
+                newly_added_points += add_circle_x_line(_app_config->context, left_circle2, left_line);
                 
                 // (x3)
-                newly_added_points += add_circle_x_circle(&known_points, left_circle1, left_circle2);
+                newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, left_circle2);
                 
                 // first pair covered, onto the second pair
                 for (p3_node = p1_node, p3_count=0; p3_node != NULL; p3_node = p3_node->next, p3_count++) {
                     for (p4_node = p3_node->next, p4_count=0; p4_node != NULL; p4_node = p4_node->next, p4_count++) {
                         
+                        loop4_count++;
+                        
                         if (p1_node == p3_node && p2_node == p4_node) {
                             continue;
                         }
                         
-                        // This measures how much time has elapsed since the last status update.
-                        // If enough time has passed, print a new status updated.
-                        // (add a delay to test this with: sleep(1))
-                        if (ELAPSED_TIME_UPDATE_SEC > 0) {
-                            gettimeofday(&tv2, NULL);
-                            update_elapsed = (double) (tv2.tv_sec - tv1.tv_sec);
-                            if (update_elapsed > (double)(ELAPSED_TIME_UPDATE_SEC)) {
-                                total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
-                                count = HASH_COUNT(known_points);
-                                printf("%llu: p1=%zu, p2=%zu, p3=%zu, p4=%zu, working_set length=%zu, known_points=%zu\n",
-                                    (long long unsigned)total_elapsed,
-                                    p1_count,
-                                    p2_count,
-                                    p3_count,
-                                    p4_count,
-                                    working_set->index,
-                                    count
-                                    );
-                                gettimeofday(&tv1, NULL);
-                            }
-                        }                 
+                        gettimeofday(&tv2, NULL);
+                        total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
+                        
+                        // Check for benchmark to exit early.
+                        if (_app_config->benchmark_time_sec > 0 
+                                    && total_elapsed > (double)(_app_config->benchmark_time_sec)) {
+                            count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                            printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n"
+                            "BENCHMARK_TIME_SEC exceeded, exiting.\n",
+                                (long long unsigned)total_elapsed,
+                                p1_count,
+                                p1_node->index,
+                                p2_count,
+                                p2_node->index,
+                                p3_count,
+                                p3_node->index,
+                                p4_count,
+                                p4_node->index,
+                                working_set->index,
+                                count
+                                );
+                            goto EXIT_LOOP;
+                        }
+                        
+                        // Check for status update.
+                        if (_app_config->update_interval_sec > 0 
+                                    && (double)(tv2.tv_sec) > next_status_update_time) {
+                            next_status_update_time = (double)(next_status_update_time) + (double)(_app_config->update_interval_sec);
+                            
+                            count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                            printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                            (long long unsigned)total_elapsed,
+                            p1_count,
+                            p1_node->index,
+                            p2_count,
+                            p2_node->index,
+                            p3_count,
+                            p3_node->index,
+                            p4_count,
+                            p4_node->index,
+                            working_set->index,
+                            count
+                            );
+                        }
+                        
+                        // Check for checkpoint save.
+                        if (_app_config->checkpoint_interval_sec > 0 
+                                    && (double)(tv2.tv_sec) > next_checkpoint_time) {
+                            next_checkpoint_time = (double)(next_checkpoint_time) + (double)(_app_config->checkpoint_interval_sec);
+                            
+                            printf("(checkpoint)\n");
+                            //count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                            //
+                            //_save_context->current_iteration = _current_iteration;
+                            //_save_context->p1_count = p1_count;
+                            //_save_context->p1_index = p1_node->index;
+                            //_save_context->p2_count = p2_count;
+                            //_save_context->p2_index = p2_node->index;
+                            //_save_context->p3_count = p3_count;
+                            //_save_context->p3_index = p3_node->index;
+                            //_save_context->p4_count = p4_count;
+                            //_save_context->p4_index = p4_node->index;
+                            //
+                            //printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                            //    (long long unsigned)total_elapsed,
+                            //    _save_context->p1_count,
+                            //    _save_context->p1_index,
+                            //    _save_context->p2_count,
+                            //    _save_context->p2_index,
+                            //    _save_context->p3_count,
+                            //    _save_context->p3_index,
+                            //    _save_context->p4_count,
+                            //    _save_context->p4_index,
+                            //    working_set->index,
+                            //    count
+                            //    );
+                            //
+                            ////db_save_status(con, _save_context);
+                            //
+                            //if (_app_config->show_when_commit) {
+                            //    printf("commit (status)\n");
+                            //}
+                            //mysql_commit(_app_config->context->connection->con);
+                        }
                         
                         p3 = (point_t*)p3_node->data;
                         p4 = (point_t*)p4_node->data;
@@ -406,25 +569,25 @@ int main() {
                             // skip (1) left_line x right_line
                             // skip (5) left_circle1 x right_circle1
                             // (6)
-                            newly_added_points += add_circle_x_circle(&known_points, left_circle1, right_circle2);
+                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
                         }
                         else if (p2 == p3)
                         {
                             // skip (1) left_line x right_line
                             // skip (6) left_circle1 x right_circle2
                             // (5)
-                            newly_added_points += add_circle_x_circle(&known_points, left_circle1, right_circle1);
+                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
                         }
                         else
                         {
                             // (1)
-                            newly_added_points += add_line_x_line(&known_points, left_line, right_line);
+                            newly_added_points += add_line_x_line(_app_config->context, left_line, right_line);
                             
                             // (5)
-                            newly_added_points += add_circle_x_circle(&known_points, left_circle1, right_circle1);
+                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
                             
                             // (6)
-                            newly_added_points += add_circle_x_circle(&known_points, left_circle1, right_circle2);
+                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
                         }
 
                         // always check everything else
@@ -433,13 +596,13 @@ int main() {
                         // handled above
                             
                         // (2)
-                        newly_added_points += add_circle_x_line(&known_points, right_circle1, left_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, right_circle1, left_line);
                         
                         // (3)
-                        newly_added_points += add_circle_x_line(&known_points, right_circle2, left_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, right_circle2, left_line);
 
                         // (4)
-                        newly_added_points += add_circle_x_line(&known_points, left_circle1, right_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, left_circle1, right_line);
                         
                         // (5)
                         // handled above
@@ -448,24 +611,24 @@ int main() {
                         // handled above
                         
                         // (7)
-                        newly_added_points += add_circle_x_line(&known_points, left_circle2, right_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, left_circle2, right_line);
                         
                         // (8)
-                        newly_added_points += add_circle_x_circle(&known_points, left_circle2, right_circle1);
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle1);
                             
                         // (9)
-                        newly_added_points += add_circle_x_circle(&known_points, left_circle2, right_circle2);
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle2);
 
                         // And self intersections for right points (three total)
                         
                         // (x1)
-                        newly_added_points += add_circle_x_line(&known_points, right_circle1, right_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, right_circle1, right_line);
                         
                         // (x2)
-                        newly_added_points += add_circle_x_line(&known_points, right_circle2, right_line);
+                        newly_added_points += add_circle_x_line(_app_config->context, right_circle2, right_line);
                         
                         // (x3)
-                        newly_added_points += add_circle_x_circle(&known_points, right_circle1, right_circle2);
+                        newly_added_points += add_circle_x_circle(_app_config->context, right_circle1, right_circle2);
                         
                         // done with right pair
                         
@@ -483,95 +646,63 @@ int main() {
             }
         }
         
-        // done with the current iteration.
+        // Done with work.
+        db_checkin_work(_app_config->context, current_job);
+        run_status_free(current_job);
+        current_job = NULL;
+                
+        //db_context_commit(_app_config->context);
         
-        if (PRINT_ITERATION_STATS) {
-            printf("results for iteration %d\n", current_iteration);
+        if (_app_config->print_iteration_stats) {
+            printf("results for iteration %d\n", _current_iteration);
             
             count = working_set->index + 1;
             printf("working_set count: %zu\n", count);
-            
-            count = HASH_COUNT(known_points);
-            printf("known_points count: %zu\n", count);
-            
+                        
             printf("new points this iteration: %zu\n", newly_added_points);
+            
+            count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+            printf("db known points count: %zu\n", count);
             printf("\n");
-        }
-        
-        iteration_count[current_iteration] = iteration_count[current_iteration-1] + newly_added_points;
-        
-        // Empty (and free) current working set.
-        // Note: this is why a point cannot reside in both working_set and known_points.
-        do {
-            if (working_set != NULL) {
-                point_free(working_set->data);
-            }
-
-            result = list_remove(&working_set);
-        } while (1 == result);
-        
-        // Build new working_set from known_points.
-        HASH_ITER(hh, known_points, p1, p2) {
-            p3 = point_clone(p1);
-            list_add(&working_set, p3, sizeof(list_t));
         }
     }
     
-    if (WRITE_POINTS_TO_FILE) {
-        // Write a status update, sorting can take a long time.
-        printf("Sorting points, about to write to file.\n");
-        
-        HASH_SORT(known_points, point_sort_function);
-        
-        FILE *fp;
-        fp = fopen(OUTPUT_FILENAME, "w+");
-        
-        if (NULL == fp) {
-            fprintf(stderr, "Fatal error opening %s for output.\n", OUTPUT_FILENAME);
-            exit(1);
-        }
-        
-        HASH_ITER(hh, known_points, p1, p2) {
-            point_fprintf(fp, p1, HASH_DECIMAL_DIGITS);
-        }
-        fclose(fp);
-    }
+EXIT_LOOP:
+
+    gettimeofday(&tv2, NULL);
+    total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
     
     // show results
     
-    printf("\n");
+    printf("loop4_count: %zu\n", loop4_count);
+    printf("primary run time: %llu seconds.\n", (long long unsigned)total_elapsed);
     
-    for (int i=0; i<=MAX_ITERATIONS; i++) {
-        printf("%zu", iteration_count[i]);
-        if (i + 1 <= MAX_ITERATIONS) {
-            printf(",");
-        }
+    printf("\n");
+       
+    // done with program, cleanup, free memory.
+    
+    if (current_job != NULL) {
+        free(current_job);
     }
-    printf("\n");
-    
-    // done with program, cleanup.
-    
+        
     do {
         if (starting_set != NULL) {
             point_free(starting_set->data);
         }
 
-        result = list_remove(&starting_set);
-    }while (1 == result);
+        result = single_linked_list_remove(&starting_set);
+    } while (1 == result);
     
     do {
         if (working_set != NULL) {
             point_free(working_set->data);
         }
 
-        result = list_remove(&working_set);
-    }while (1 == result);
+        result = single_linked_list_remove(&working_set);
+    } while (1 == result);
     
-    HASH_ITER(hh, known_points, p1, p2) {
-        HASH_DEL(known_points, p1);
-        point_free(p1);
-    }
-    
+    //db_context_commit(_app_config->context);
+
     mpf_clear(d1);
     mpf_clear(d2);
     
@@ -579,6 +710,9 @@ int main() {
     global_point_free();
     global_line_free();
     global_circle_free();
+    global_datamodel_free();
+    
+    app_config_free(_app_config); // calls db_context_free which also closes connection
     
     printf("success.\n");
     

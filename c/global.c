@@ -6,9 +6,12 @@
 * MIT License, see /LICENSE for details.
 */
 #include <stdio.h> // recommended to include stdio before gmp
+#include <stdlib.h>
 #include <gmp.h>
 #include <assert.h>
+#include <stdarg.h>
 
+#include "console.h"
 #include "global.h"
 
 mpf_t g_one;
@@ -27,10 +30,10 @@ static mpf_t _t2;
 * This only affects variables instantiated after this call.
 * Initializes some static variables.
 */
-void global_init(mp_bitcnt_t precision) {
+void global_init(mp_bitcnt_t precision, char* str_epsilon) {
     if (_p_init != 0) {
         return;
-    }
+    }
 
     _p_init = 1;
     
@@ -43,7 +46,7 @@ void global_init(mp_bitcnt_t precision) {
     mpf_init_set_ui(g_one, 1);
     mpf_init_set_ui(g_two, 2);
     
-    mpf_init_set_str(g_epsilon, STR_EPSILON, 10);
+    mpf_init_set_str(g_epsilon, str_epsilon, 10);
 }
 
 /*
@@ -127,4 +130,31 @@ int global_compare2(mpf_t f1, mpf_t f2) {
     }
     
     return mpf_sgn(_t1);
+}
+
+/*
+* Prints an error message to stderr in red text.
+*/
+void global_error_printf(char *format, ...) {
+   va_list args;
+
+   va_start(args, format);
+   fprintf(stderr, CONSOLE_RED);
+   vfprintf(stderr, format, args);
+   fprintf(stderr, CONSOLE_RESET);
+   va_end(args);
+}
+
+/*
+* Checks if a pointer is null, and if so, prints
+* an error message to stderr in red text then exits.
+*
+* @p: pointer to compare to NULL.
+* @error_msg: message to print.
+*/
+void global_exit_if_null(void* p, char* error_msg) {
+    if (p == NULL) {
+        global_error_printf(error_msg);
+        exit(1);
+    }
 }

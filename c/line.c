@@ -85,11 +85,7 @@ void global_line_free() {
 */
 line_t* line_alloc() {
     line_t* p = malloc(sizeof(line_t));
-    if(p == NULL)
-    {
-        fprintf(stderr, "Fatal error calling malloc for line_t.\n");
-        exit(1);
-    }
+    global_exit_if_null(p, "Fatal error calling malloc for line_t.\n");
     
     memset(p, 0, sizeof(line_t));
     

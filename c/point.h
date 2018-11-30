@@ -13,30 +13,34 @@
 #include <stdint.h>
 
 #include "global.h"
-#include "uthash.h"
 
 typedef struct point {
+    // database id for point.
+    int64_t point_id;
+    
     // x coordinate.
     mpf_t x;
     
     // y coordinate.
     mpf_t y;
     
-    // Will contain the unique representation of the point, up to precision,
-    // as a zero terminated string: "-x.xxxxx,-y.yyyyyy"
-    char hash_id[HASH_KEY_LENGTH];
+    // x coordinate as character buffer.
+    char *str_x;
+    
+    // y coordinate as character buffer.
+    char *str_y;
     
     // Whether or not this object has been initialized.
     int is_init;
     
-    // makes this structure hashable
-    UT_hash_handle hh;
 } point_t;
 
 /*
 * Initializes some static variables.
+*
+* @str_point_digits: number of digits to use for each axis when storing point as string.
 */
-void global_point_init();
+void global_point_init(size_t str_point_digits);
 
 /*
 * Frees memory used by static variables.
@@ -101,6 +105,16 @@ void point_set(point_t* p, mpf_t x, mpf_t y);
 * @y: y value.
 */
 void point_set_si(point_t* p, intmax_t x, intmax_t y);
+
+/*
+* Sets a point's x,y values from string.
+* This updates the point's hash key.
+*
+* @p: Point that will get new x,y values.
+* @x: x value.
+* @y: y value.
+*/
+void point_set_str(point_t* p, const char *x, const char *y);
 
 /*
 * Sets the point's hash key. This is required
