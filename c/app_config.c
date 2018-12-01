@@ -115,10 +115,6 @@ int app_config_ini_parse_handler(void* config, const char* section, const char* 
         sscanf(value, "%zu", &(pconfig->starting_points_file_line_buffer));
     } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "BENCHMARK_TIME_SEC") == 0) {
         sscanf(value, "%zu", &(pconfig->benchmark_time_sec));
-    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "QUERIES_BETWEEN_COMMITS") == 0) {
-        sscanf(value, "%zu", &(pconfig->queries_between_commits));
-    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "SHOW_WHEN_COMMIT") == 0) {
-        pconfig->show_when_commit = atoi(value);
     } else {
         return 0;  /* unknown section/name, error */
     }
@@ -151,6 +147,4 @@ void app_config_printf(app_config_t* config) {
     printf("output_filename: %s\n", config->output_filename);
     printf("str_init_epsilon: %s\n", config->str_init_epsilon);
     printf("benchmark_time_sec: %zu\n", config->benchmark_time_sec);
-    printf("queries_between_commits: %zu\n", config->queries_between_commits);
-    printf("show_when_commit: %d\n", config->show_when_commit);
 }

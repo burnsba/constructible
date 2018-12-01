@@ -83,13 +83,6 @@ typedef struct app_config {
     // Abort if the application has been running longer than this many seconds.
     // Set to less than one to disable.
     size_t benchmark_time_sec;
-    
-    // Number of times to call db_insert_known_set before committing the 
-    // current transaction.
-    size_t queries_between_commits;
-    
-    // Whether or not to show commit message.
-    int show_when_commit;
 } app_config_t;
 
 /*
