@@ -238,6 +238,12 @@ int db_insert_known_set(db_context_t* context, point_t* p) {
     bind[3].buffer = (char *)(p->str_y);
     bind[3].is_null = 0;
     bind[3].length = &input_length;
+    
+    if (context->connection->verbose_level == 1) {
+        for (int i=0; i<4; i++) {
+            printf("?.%d: %s\n", i, (char *)bind[i].buffer);
+        }
+    }
 
     // done binding parameters
     
