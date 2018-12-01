@@ -26,7 +26,6 @@
 #include "ini.h"
 
 app_config_t* _app_config;
-//size_t _queries_since_commit = 0;
 
 // track current iteration number
 uint8_t _current_iteration = 0;
@@ -119,15 +118,6 @@ int add_to_known_and_free(db_context_t* context, point_t** p) {
         point_free(ip);
         *p = NULL;
     }
-    
-    //_queries_since_commit++;
-    //if (_queries_since_commit > _app_config->queries_between_commits) {
-    //    if (_app_config->show_when_commit) {
-    //        printf("commit (db_insert_known_set)\n");
-    //    }
-    //    db_context_commit(context);
-    //    _queries_since_commit = 0;
-    //}
     
     return result;
 }
@@ -406,82 +396,60 @@ int main() {
         }
         
         // Inner loop where the points are constructed.
-        for (p1_count=0; p1_node != NULL; p1_node = p1_node->next, p1_count++) {
-            for (p2_node = p1_node->next, p2_count=0; p2_node != NULL; p2_node = p2_node->next, p2_count++) {
-                p1 = (point_t*)p1_node->data;
-                p2 = (point_t*)p2_node->data;
-                
-                point_distance(d1, p1, p2);
-                
-                // skip if points are the same
-                if (global_is_zero(d1) == 1) {
-                    continue;
-                }
-                
-                left_line = line_alloc();
-                left_circle1 = circle_alloc();
-                left_circle2 = circle_alloc();
-                
-                line_init(left_line);
-                circle_init(left_circle1);
-                circle_init(left_circle2);
-                
-                line_set(left_line, p1, p2);
-                circle_set(left_circle1, p1, d1);
-                circle_set(left_circle2, p2, d1);
-                
-                // Self intersections for left points (three total)
-                
-                // (x1)
-                newly_added_points += add_circle_x_line(_app_config->context, left_circle1, left_line);
-                
-                // (x2)
-                newly_added_points += add_circle_x_line(_app_config->context, left_circle2, left_line);
-                
-                // (x3)
-                newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, left_circle2);
-                
-                // first pair covered, onto the second pair
-                for (p3_node = p1_node, p3_count=0; p3_node != NULL; p3_node = p3_node->next, p3_count++) {
-                    for (p4_node = p3_node->next, p4_count=0; p4_node != NULL; p4_node = p4_node->next, p4_count++) {
-                        
-                        loop4_count++;
-                        
-                        if (p1_node == p3_node && p2_node == p4_node) {
-                            continue;
-                        }
-                        
-                        gettimeofday(&tv2, NULL);
-                        total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
-                        
-                        // Check for benchmark to exit early.
-                        if (_app_config->benchmark_time_sec > 0 
-                                    && total_elapsed > (double)(_app_config->benchmark_time_sec)) {
-                            count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
-                            printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n"
-                            "BENCHMARK_TIME_SEC exceeded, exiting.\n",
-                                (long long unsigned)total_elapsed,
-                                p1_count,
-                                p1_node->index,
-                                p2_count,
-                                p2_node->index,
-                                p3_count,
-                                p3_node->index,
-                                p4_count,
-                                p4_node->index,
-                                working_set->index,
-                                count
-                                );
-                            goto EXIT_LOOP;
-                        }
-                        
-                        // Check for status update.
-                        if (_app_config->update_interval_sec > 0 
-                                    && (double)(tv2.tv_sec) > next_status_update_time) {
-                            next_status_update_time = (double)(next_status_update_time) + (double)(_app_config->update_interval_sec);
-                            
-                            count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
-                            printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+        p1_count=0;
+        for (p2_node = p1_node->next, p2_count=0; p2_node != NULL; p2_node = p2_node->next, p2_count++) {
+            p1 = (point_t*)p1_node->data;
+            p2 = (point_t*)p2_node->data;
+            
+            point_distance(d1, p1, p2);
+            
+            // skip if points are the same
+            if (global_is_zero(d1) == 1) {
+                continue;
+            }
+            
+            left_line = line_alloc();
+            left_circle1 = circle_alloc();
+            left_circle2 = circle_alloc();
+            
+            line_init(left_line);
+            circle_init(left_circle1);
+            circle_init(left_circle2);
+            
+            line_set(left_line, p1, p2);
+            circle_set(left_circle1, p1, d1);
+            circle_set(left_circle2, p2, d1);
+            
+            // Self intersections for left points (three total)
+            
+            // (x1)
+            newly_added_points += add_circle_x_line(_app_config->context, left_circle1, left_line);
+            
+            // (x2)
+            newly_added_points += add_circle_x_line(_app_config->context, left_circle2, left_line);
+            
+            // (x3)
+            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, left_circle2);
+            
+            // first pair covered, onto the second pair
+            for (p3_node = p1_node, p3_count=0; p3_node != NULL; p3_node = p3_node->next, p3_count++) {
+                for (p4_node = p3_node->next, p4_count=0; p4_node != NULL; p4_node = p4_node->next, p4_count++) {
+                    
+                    loop4_count++;
+                    
+                    if (p1_node == p3_node && p2_node == p4_node) {
+                        continue;
+                    }
+                    
+                    gettimeofday(&tv2, NULL);
+                    total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
+                    
+                    // Check for benchmark to exit early.
+                    if (_app_config->benchmark_time_sec > 0 
+                                && total_elapsed > (double)(_app_config->benchmark_time_sec)) {
+                        count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                        printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n"
+                        "BENCHMARK_TIME_SEC exceeded, exiting.\n",
                             (long long unsigned)total_elapsed,
                             p1_count,
                             p1_node->index,
@@ -494,158 +462,176 @@ int main() {
                             working_set->index,
                             count
                             );
-                        }
+                        goto EXIT_LOOP;
+                    }
+                    
+                    // Check for status update.
+                    if (_app_config->update_interval_sec > 0 
+                                && (double)(tv2.tv_sec) > next_status_update_time) {
+                        next_status_update_time = (double)(next_status_update_time) + (double)(_app_config->update_interval_sec);
                         
-                        // Check for checkpoint save.
-                        if (_app_config->checkpoint_interval_sec > 0 
-                                    && (double)(tv2.tv_sec) > next_checkpoint_time) {
-                            next_checkpoint_time = (double)(next_checkpoint_time) + (double)(_app_config->checkpoint_interval_sec);
-                            
-                            printf("(checkpoint)\n");
-                            //count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
-                            //
-                            //_save_context->current_iteration = _current_iteration;
-                            //_save_context->p1_count = p1_count;
-                            //_save_context->p1_index = p1_node->index;
-                            //_save_context->p2_count = p2_count;
-                            //_save_context->p2_index = p2_node->index;
-                            //_save_context->p3_count = p3_count;
-                            //_save_context->p3_index = p3_node->index;
-                            //_save_context->p4_count = p4_count;
-                            //_save_context->p4_index = p4_node->index;
-                            //
-                            //printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
-                            //    (long long unsigned)total_elapsed,
-                            //    _save_context->p1_count,
-                            //    _save_context->p1_index,
-                            //    _save_context->p2_count,
-                            //    _save_context->p2_index,
-                            //    _save_context->p3_count,
-                            //    _save_context->p3_index,
-                            //    _save_context->p4_count,
-                            //    _save_context->p4_index,
-                            //    working_set->index,
-                            //    count
-                            //    );
-                            //
-                            ////db_save_status(con, _save_context);
-                            //
-                            //if (_app_config->show_when_commit) {
-                            //    printf("commit (status)\n");
-                            //}
-                            //mysql_commit(_app_config->context->connection->con);
-                        }
+                        count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                        printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                        (long long unsigned)total_elapsed,
+                        p1_count,
+                        p1_node->index,
+                        p2_count,
+                        p2_node->index,
+                        p3_count,
+                        p3_node->index,
+                        p4_count,
+                        p4_node->index,
+                        working_set->index,
+                        count
+                        );
+                    }
+                    
+                    // Check for checkpoint save.
+                    if (_app_config->checkpoint_interval_sec > 0 
+                                && (double)(tv2.tv_sec) > next_checkpoint_time) {
+                        next_checkpoint_time = (double)(next_checkpoint_time) + (double)(_app_config->checkpoint_interval_sec);
                         
-                        p3 = (point_t*)p3_node->data;
-                        p4 = (point_t*)p4_node->data;
-                        
-                        point_distance(d2, p3, p4);
-                        
-                        // skip if points are the same
-                        if (global_is_zero(d2) == 1) {
-                            continue;
-                        }
-                        
-                        right_line = line_alloc();
-                        right_circle1 = circle_alloc();
-                        right_circle2 = circle_alloc();
-                        
-                        line_init(right_line);
-                        circle_init(right_circle1);
-                        circle_init(right_circle2);
-                        
-                        line_set(right_line, p3, p4);
-                        circle_set(right_circle1, p3, d2);
-                        circle_set(right_circle2, p4, d2);
-                        
-                        // All comparisons:
-                        // (1) left_line    x right_line, (2) left_line x right_circle1,    (3) left_line x right_circle2
-                        // (4) left_circle1 x right_line, (5) left_circle1 x right_circle1, (6) left_circle1 x right_circle2
-                        // (7) left_circle2 x right_line, (8) left_circle2 x right_circle1, (9) left_circle2 x right_circle2
-                        
-                        // sometimes, two of p1,p2,p3,p4 will be the same. Handle that here.
-                        if (p1 == p3)
-                        {
-                            // skip (1) left_line x right_line
-                            // skip (5) left_circle1 x right_circle1
-                            // (6)
-                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
-                        }
-                        else if (p2 == p3)
-                        {
-                            // skip (1) left_line x right_line
-                            // skip (6) left_circle1 x right_circle2
-                            // (5)
-                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
-                        }
-                        else
-                        {
-                            // (1)
-                            newly_added_points += add_line_x_line(_app_config->context, left_line, right_line);
-                            
-                            // (5)
-                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
-                            
-                            // (6)
-                            newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
-                        }
+                        printf("(checkpoint)\n");
+                        //count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+                        //
+                        //_save_context->current_iteration = _current_iteration;
+                        //_save_context->p1_count = p1_count;
+                        //_save_context->p1_index = p1_node->index;
+                        //_save_context->p2_count = p2_count;
+                        //_save_context->p2_index = p2_node->index;
+                        //_save_context->p3_count = p3_count;
+                        //_save_context->p3_index = p3_node->index;
+                        //_save_context->p4_count = p4_count;
+                        //_save_context->p4_index = p4_node->index;
+                        //
+                        //printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                        //    (long long unsigned)total_elapsed,
+                        //    _save_context->p1_count,
+                        //    _save_context->p1_index,
+                        //    _save_context->p2_count,
+                        //    _save_context->p2_index,
+                        //    _save_context->p3_count,
+                        //    _save_context->p3_index,
+                        //    _save_context->p4_count,
+                        //    _save_context->p4_index,
+                        //    working_set->index,
+                        //    count
+                        //    );
+                        //
+                        ////db_save_status(con, _save_context);
 
-                        // always check everything else
-                            
+                        //mysql_commit(_app_config->context->connection->con);
+                    }
+                    
+                    p3 = (point_t*)p3_node->data;
+                    p4 = (point_t*)p4_node->data;
+                    
+                    point_distance(d2, p3, p4);
+                    
+                    // skip if points are the same
+                    if (global_is_zero(d2) == 1) {
+                        continue;
+                    }
+                    
+                    right_line = line_alloc();
+                    right_circle1 = circle_alloc();
+                    right_circle2 = circle_alloc();
+                    
+                    line_init(right_line);
+                    circle_init(right_circle1);
+                    circle_init(right_circle2);
+                    
+                    line_set(right_line, p3, p4);
+                    circle_set(right_circle1, p3, d2);
+                    circle_set(right_circle2, p4, d2);
+                    
+                    // All comparisons:
+                    // (1) left_line    x right_line, (2) left_line x right_circle1,    (3) left_line x right_circle2
+                    // (4) left_circle1 x right_line, (5) left_circle1 x right_circle1, (6) left_circle1 x right_circle2
+                    // (7) left_circle2 x right_line, (8) left_circle2 x right_circle1, (9) left_circle2 x right_circle2
+                    
+                    // sometimes, two of p1,p2,p3,p4 will be the same. Handle that here.
+                    if (p1 == p3)
+                    {
+                        // skip (1) left_line x right_line
+                        // skip (5) left_circle1 x right_circle1
+                        // (6)
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
+                    }
+                    else if (p2 == p3)
+                    {
+                        // skip (1) left_line x right_line
+                        // skip (6) left_circle1 x right_circle2
+                        // (5)
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
+                    }
+                    else
+                    {
                         // (1)
-                        // handled above
-                            
-                        // (2)
-                        newly_added_points += add_circle_x_line(_app_config->context, right_circle1, left_line);
-                        
-                        // (3)
-                        newly_added_points += add_circle_x_line(_app_config->context, right_circle2, left_line);
-
-                        // (4)
-                        newly_added_points += add_circle_x_line(_app_config->context, left_circle1, right_line);
+                        newly_added_points += add_line_x_line(_app_config->context, left_line, right_line);
                         
                         // (5)
-                        // handled above
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
                         
                         // (6)
-                        // handled above
-                        
-                        // (7)
-                        newly_added_points += add_circle_x_line(_app_config->context, left_circle2, right_line);
-                        
-                        // (8)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle1);
-                            
-                        // (9)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle2);
-
-                        // And self intersections for right points (three total)
-                        
-                        // (x1)
-                        newly_added_points += add_circle_x_line(_app_config->context, right_circle1, right_line);
-                        
-                        // (x2)
-                        newly_added_points += add_circle_x_line(_app_config->context, right_circle2, right_line);
-                        
-                        // (x3)
-                        newly_added_points += add_circle_x_circle(_app_config->context, right_circle1, right_circle2);
-                        
-                        // done with right pair
-                        
-                        line_free(right_line);
-                        circle_free(right_circle1);
-                        circle_free(right_circle2);
+                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
                     }
+
+                    // always check everything else
+                        
+                    // (1)
+                    // handled above
+                        
+                    // (2)
+                    newly_added_points += add_circle_x_line(_app_config->context, right_circle1, left_line);
+                    
+                    // (3)
+                    newly_added_points += add_circle_x_line(_app_config->context, right_circle2, left_line);
+
+                    // (4)
+                    newly_added_points += add_circle_x_line(_app_config->context, left_circle1, right_line);
+                    
+                    // (5)
+                    // handled above
+                    
+                    // (6)
+                    // handled above
+                    
+                    // (7)
+                    newly_added_points += add_circle_x_line(_app_config->context, left_circle2, right_line);
+                    
+                    // (8)
+                    newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle1);
+                        
+                    // (9)
+                    newly_added_points += add_circle_x_circle(_app_config->context, left_circle2, right_circle2);
+
+                    // And self intersections for right points (three total)
+                    
+                    // (x1)
+                    newly_added_points += add_circle_x_line(_app_config->context, right_circle1, right_line);
+                    
+                    // (x2)
+                    newly_added_points += add_circle_x_line(_app_config->context, right_circle2, right_line);
+                    
+                    // (x3)
+                    newly_added_points += add_circle_x_circle(_app_config->context, right_circle1, right_circle2);
+                    
+                    // done with right pair
+                    
+                    line_free(right_line);
+                    circle_free(right_circle1);
+                    circle_free(right_circle2);
                 }
-                
-                // done with left pair
-                
-                line_free(left_line);
-                circle_free(left_circle1);
-                circle_free(left_circle2);
             }
+            
+            // done with left pair
+            
+            line_free(left_line);
+            circle_free(left_circle1);
+            circle_free(left_circle2);
         }
-        
+
         // Done with work.
         db_checkin_work(_app_config->context, current_job);
         run_status_free(current_job);
