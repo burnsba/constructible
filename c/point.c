@@ -141,11 +141,12 @@ void point_free(point_t* p) {
     free(p->str_y);
     free(p->hash_key);
     p->is_init = 0;
-    free(p);
     
     p->str_x = NULL;
     p->str_y = NULL;
-    p->hash_key = NULL;    
+    p->hash_key = NULL;
+    
+    free(p);
 }
 
 /*
