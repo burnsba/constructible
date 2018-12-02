@@ -404,7 +404,7 @@ size_t db_get_working_set(db_context_t* context, single_linked_list_t** working_
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
     sprintf(_buffer, 
         "SELECT `x`,`y`,`id` FROM `%s` "
-        "WHERE `id` > %ld "
+        "WHERE `id` >= %ld "
         "ORDER BY `x`,`y`;",
         context->db_table_name_working,
         after);
