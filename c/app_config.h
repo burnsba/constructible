@@ -33,6 +33,17 @@ typedef struct app_config {
     // digits, which should be ~ ln(2^PRECISION_BITS)/ln(10).
     size_t str_point_digits;
     
+    // Number of characters to use for the memory cache for points.
+    // Should be the same or larger than DB_POINT_DECIMAL_DIGITS_PRECISION 
+    // for consistency. (for single x,y; total length is twice this).
+    size_t point_hash_coord_digits;
+    
+    // Max number of points to cache in memory. Before making a trip to
+    // the database the memory cache is checked to see if the point is 
+    // already known.
+    // (uses uthash, "unsigned" type)
+    size_t max_point_cache;
+    
     // Number of decimal digits to use when printing output. This is smaller than
     // the above to avoid extra clutter.
     size_t print_digits;
@@ -60,14 +71,17 @@ typedef struct app_config {
     
     // If more than this many seconds have passed since the last
     // checkpoint, save a new checkpoint. Set to zero or negative to disable.
+    // NOT USED
     int checkpoint_interval_sec;
     
     // If set, will attempt to load previous state from database and resume 
     // from there. Set to 0 to ignore and load points from starting file.
+    // NOT USED
     int allow_resume_from_checkpoint;
     
     // After everything is done, sort the points and write the output to a file.
     // This file is truncated and overwritten.
+    // NOT USED
     int write_points_to_file;
     char* output_filename;
     

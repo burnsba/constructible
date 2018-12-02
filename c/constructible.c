@@ -31,6 +31,9 @@ app_config_t* _app_config;
 uint8_t _current_iteration = 0;
 int8_t _v = 0;
 
+// global memory cache of known points
+point_t* p_point_hash = NULL;
+
 int add_to_known_and_free(db_context_t* context, point_t** p);
 int add_line_x_line(db_context_t* context, line_t*, line_t*);
 int add_circle_x_line(db_context_t* context, circle_t*, line_t*);
@@ -113,8 +116,46 @@ int add_circle_x_circle(db_context_t* context, circle_t* c1, circle_t* c2) {
 int add_to_known_and_free(db_context_t* context, point_t** p) {
     point_t* ip = *p;
     int result = 0;
-    if (ip != NULL) {
-        result = db_insert_known_set(context, ip);
+    size_t lookup_count;
+    point_t* lookup_point;
+    int free_point = 1;
+    
+    if (ip == NULL) {
+        return 0;
+    }
+    
+    point_ensure_hash(ip);
+    
+    if (_app_config->max_point_cache > 0) {
+        //printf("looking up point in cache: %s\n", ip->hash_key);
+        HASH_FIND_STR(p_point_hash, ip->hash_key, lookup_point);
+        if (lookup_point != NULL) {
+            //printf("found point in memory\n");
+            point_free(ip);
+            *p = NULL;
+            return 0;
+        }
+    }
+    
+    result = db_insert_known_set(context, ip);
+    
+    if (result > 0) {
+        if (_app_config->max_point_cache > 0) {
+            lookup_count = HASH_COUNT(p_point_hash);
+            if (lookup_count < _app_config->max_point_cache) {
+                //printf("add point to cache       : %s\n", ip->hash_key);
+                HASH_ADD_KEYPTR(
+                    hh,
+                    p_point_hash,
+                    ip->hash_key,
+                    ip->hash_key_length,
+                    ip);
+                free_point = 0;
+            }
+        }
+    }
+    
+    if (free_point > 0) {
         point_free(ip);
         *p = NULL;
     }
@@ -194,7 +235,7 @@ int main() {
     // init
     
     global_init(_app_config->gmp_precision_bits, _app_config->str_init_epsilon);
-    global_point_init(_app_config->str_point_digits);
+    global_point_init(_app_config->str_point_digits, _app_config->point_hash_coord_digits);
     global_line_init();
     global_circle_init();
     global_datamodel_init();
@@ -397,8 +438,9 @@ int main() {
         
         // Inner loop where the points are constructed.
         p1_count=0;
-        for (p2_node = p1_node->next, p2_count=0; p2_node != NULL; p2_node = p2_node->next, p2_count++) {
-            p1 = (point_t*)p1_node->data;
+        p1 = (point_t*)p1_node->data;
+        
+        for (p2_node = p1_node->next, p2_count=0; p2_node != NULL; p2_node = p2_node->next, p2_count++) {   
             p2 = (point_t*)p2_node->data;
             
             point_distance(d1, p1, p2);
@@ -433,11 +475,14 @@ int main() {
             
             // first pair covered, onto the second pair
             for (p3_node = p1_node, p3_count=0; p3_node != NULL; p3_node = p3_node->next, p3_count++) {
+                
+                p3 = (point_t*)p3_node->data;
+                
                 for (p4_node = p3_node->next, p4_count=0; p4_node != NULL; p4_node = p4_node->next, p4_count++) {
                     
                     loop4_count++;
                     
-                    if (p1_node == p3_node && p2_node == p4_node) {
+                    if (p1_node->index == p3_node->index && p4_node->index <= p2_node->index) {
                         continue;
                     }
                     
@@ -523,7 +568,6 @@ int main() {
                         //mysql_commit(_app_config->context->connection->con);
                     }
                     
-                    p3 = (point_t*)p3_node->data;
                     p4 = (point_t*)p4_node->data;
                     
                     point_distance(d2, p3, p4);
@@ -631,7 +675,7 @@ int main() {
             circle_free(left_circle1);
             circle_free(left_circle2);
         }
-
+        
         // Done with work.
         db_checkin_work(_app_config->context, current_job);
         run_status_free(current_job);
@@ -660,8 +704,18 @@ EXIT_LOOP:
     
     // show results
     
+    if (_app_config->max_point_cache > 0) {
+        size_t lookup_count = HASH_COUNT(p_point_hash);
+        printf("number of points cached in memory: %zu\n", lookup_count);
+    }
+    
     printf("loop4_count: %zu\n", loop4_count);
     printf("primary run time: %llu seconds.\n", (long long unsigned)total_elapsed);
+    
+    if (_app_config->client_id == ROOT_CLIENT_ID) {
+        count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
+        printf("(root) get final db known points count: %zu\n", count);
+    }
     
     printf("\n");
        
@@ -687,7 +741,10 @@ EXIT_LOOP:
         result = single_linked_list_remove(&working_set);
     } while (1 == result);
     
-    //db_context_commit(_app_config->context);
+    HASH_ITER(hh, p_point_hash, p1, p2) {
+        HASH_DEL(p_point_hash, p1);
+        point_free(p1);
+    }
 
     mpf_clear(d1);
     mpf_clear(d2);

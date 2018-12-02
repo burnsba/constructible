@@ -87,7 +87,11 @@ int app_config_ini_parse_handler(void* config, const char* section, const char* 
         sscanf(value, "%zu", &(pconfig->gmp_precision_bits));
     } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "STR_POINT_DIGITS") == 0) {
         sscanf(value, "%zu", &(pconfig->str_point_digits));
-    }  else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "PRINT_DIGITS") == 0) {
+    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "POINT_HASH_COORD_DIGITS") == 0) {
+        sscanf(value, "%zu", &(pconfig->point_hash_coord_digits));
+    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "MAX_POINT_CACHE") == 0) {
+        sscanf(value, "%zu", &(pconfig->max_point_cache));
+    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "PRINT_DIGITS") == 0) {
         sscanf(value, "%zu", &(pconfig->print_digits));
     } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "MAX_ITERATIONS") == 0) {
         sscanf(value, "%zu", &(pconfig->max_iterations));
@@ -135,6 +139,8 @@ void app_config_printf(app_config_t* config) {
     printf("batch_id: %d\n", config->batch_id);
     printf("gmp_precision_bits: %zu\n", config->gmp_precision_bits);
     printf("str_point_digits: %zu\n", config->str_point_digits);
+    printf("point_hash_coord_digits: %zu\n", config->point_hash_coord_digits);
+    printf("max_point_cache: %zu\n", config->max_point_cache);
     printf("print_digits: %zu\n", config->print_digits);
     printf("max_iterations: %zu\n", config->max_iterations);
     printf("print_object_description_in_intersection_check: %d\n", config->print_object_description_in_intersection_check);

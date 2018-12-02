@@ -14,6 +14,7 @@
 
 #include "global.h"
 #include "point.h"
+#include "uthash.h"
 
 // internal variables use for calculation.
 static int _p_init = 0;
@@ -24,6 +25,10 @@ static mpf_t _t4;
 static mpf_t _t5;
 
 static size_t _str_point_digits;
+static size_t _hash_coord_digits;
+static size_t _hash_all_digits;
+
+#define LEFT_DIGITS_TOTAL 10
 
 /*
 * Sets the hash key for the point.
@@ -35,7 +40,7 @@ static void _set_hash_id(point_t*);
 *
 * @str_point_digits: number of digits to use for each axis when storing point as string.
 */
-void global_point_init(size_t str_point_digits) {
+void global_point_init(size_t str_point_digits, size_t point_hash_coord_digits) {
     if (_p_init != 0) {
         return;
     }
@@ -49,6 +54,10 @@ void global_point_init(size_t str_point_digits) {
     mpf_init(_t5);
     
     _str_point_digits = str_point_digits;
+    _hash_coord_digits = point_hash_coord_digits;
+    
+    // 5 extra for comma, decimal point, and signs
+    _hash_all_digits = (2*_hash_coord_digits)+5+LEFT_DIGITS_TOTAL;
 }
 
 /*
@@ -84,6 +93,12 @@ point_t* point_alloc() {
     p->str_y = malloc(sizeof(char)*(_str_point_digits+1));
     global_exit_if_null(p->str_y, "Fatal error calling malloc for point_t->str_y.\n");
     memset(p->str_y, 0, sizeof(char)*(_str_point_digits+1));
+    
+    p->hash_key = malloc(sizeof(char)*(_hash_all_digits+1));
+    global_exit_if_null(p->hash_key, "Fatal error calling malloc for point_t->hash_key.\n");
+    memset(p->hash_key, 0, sizeof(char)*(_hash_all_digits+1));
+    
+    p->hash_dirty = 1;
     
     return p;
 }
@@ -122,10 +137,15 @@ void point_free(point_t* p) {
     
     mpf_clear(p->x);
     mpf_clear(p->y);
-    p->is_init = 0;
     free(p->str_x);
     free(p->str_y);
+    free(p->hash_key);
+    p->is_init = 0;
     free(p);
+    
+    p->str_x = NULL;
+    p->str_y = NULL;
+    p->hash_key = NULL;    
 }
 
 /*
@@ -141,6 +161,8 @@ void point_copy(point_t* copy_to, point_t* copy_from) {
     
     mpf_set(copy_to->x, copy_from->x);
     mpf_set(copy_to->y, copy_from->y);
+    
+    copy_to->hash_dirty = 1;
     
     // don't bother copying character buffers, will be recalculated below.
     
@@ -160,6 +182,8 @@ point_t* point_clone(point_t* p) {
     point_init(pnew);
     mpf_set(pnew->x, p->x);
     mpf_set(pnew->y, p->y);
+    
+    pnew->hash_dirty = 1;
     
     // don't bother copying character buffers, will be recalculated below.
     
@@ -182,6 +206,8 @@ void point_set(point_t* p, mpf_t x, mpf_t y) {
     mpf_set(p->x, x);
     mpf_set(p->y, y);
     
+    p->hash_dirty = 1;
+    
     _set_hash_id(p);
 }
 
@@ -199,6 +225,8 @@ void point_set_si(point_t* p, intmax_t x, intmax_t y) {
     mpf_set_si(p->x, x);
     mpf_set_si(p->y, y);
     
+    p->hash_dirty = 1;
+    
     _set_hash_id(p);
 }
 
@@ -215,6 +243,8 @@ void point_set_str(point_t* p, const char *x, const char *y) {
     
     mpf_set_str(p->x, x, 10);
     mpf_set_str(p->y, y, 10);
+    
+    p->hash_dirty = 1;
     
     _set_hash_id(p);
 }
@@ -235,6 +265,11 @@ void point_ensure_hash(point_t* p) {
 * @p: Point to set hash key.
 */
 static void _set_hash_id(point_t* p) {
+    
+    if (p->hash_dirty == 0) {
+        return;
+    }
+    
     // Make sure that the value is not negative zero.
     if (global_is_zero(p->x) == 1) {
         mpf_set(p->x, g_zero);
@@ -245,9 +280,15 @@ static void _set_hash_id(point_t* p) {
     
     memset(p->str_x, 0, (_str_point_digits+1));
     memset(p->str_y, 0, (_str_point_digits+1));
+    memset(p->hash_key, 0, (_hash_all_digits+1));
     
     gmp_snprintf(p->str_x, _str_point_digits, "%.*Ff", _str_point_digits, p->x);
     gmp_snprintf(p->str_y, _str_point_digits, "%.*Ff", _str_point_digits, p->y);
+    gmp_snprintf(p->hash_key, _hash_all_digits, "%.*Ff,%.*Ff", _hash_coord_digits, p->x, _hash_coord_digits, p->y);
+    
+    p->hash_key_length = strlen(p->hash_key);
+    
+    p->hash_dirty = 0;
 }
 
 /*

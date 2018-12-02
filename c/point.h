@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #include "global.h"
+#include "uthash.h"
 
 typedef struct point {
     // database id for point.
@@ -33,14 +34,27 @@ typedef struct point {
     // Whether or not this object has been initialized.
     int is_init;
     
+    // makes this structure hashable
+    UT_hash_handle hh;
+    
+    // will be concatentation of x,y coord
+    char *hash_key;
+    
+    // Whether or not the hash key needs to be updated.
+    char hash_dirty;
+    
+    size_t hash_key_length;
+    
 } point_t;
 
 /*
 * Initializes some static variables.
 *
 * @str_point_digits: number of digits to use for each axis when storing point as string.
+* @point_hash_coord_digits: number of digits to use to for each x/y digit
+*                           to store point in memory.
 */
-void global_point_init(size_t str_point_digits);
+void global_point_init(size_t str_point_digits, size_t point_hash_coord_digits);
 
 /*
 * Frees memory used by static variables.
