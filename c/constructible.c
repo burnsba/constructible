@@ -275,7 +275,7 @@ int main() {
     point_t* p1, *p2, *p3, *p4;
     
     // Distances between points.
-    mpf_t d1, d2;
+    mpf_t d1, d2, dp13, dp24;
     
     // Lines and circles generated from the 4 points.
     line_t* left_line, *right_line;
@@ -309,6 +309,8 @@ int main() {
     //      
     mpf_init(d1);
     mpf_init(d2);
+    mpf_init(dp13);
+    mpf_init(dp24);
     
     // database connection; connect or exit.
     db_context_connect(_app_config->context);
@@ -317,7 +319,7 @@ int main() {
     // which should make a big difference in throughput, at the
     // risk of losing information (power failure, etc).
     // And of course, now need to explicitly commit changes.
-    mysql_autocommit(_app_config->context->connection->con, 0);
+    //mysql_autocommit(_app_config->context->connection->con, 0);
     
     // Check to see if there are any points to work with.
     count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_working);
@@ -592,6 +594,12 @@ int main() {
                         continue;
                     }
                     
+                    point_distance(dp13, p1, p3);
+                    point_distance(dp24, p2, p4);
+                    if (global_is_zero(dp13) == 1 && global_is_zero(dp24) == 1) {
+                        continue;
+                    }
+                    
                     right_line = line_alloc();
                     right_circle1 = circle_alloc();
                     right_circle2 = circle_alloc();
@@ -609,37 +617,8 @@ int main() {
                     // (4) left_circle1 x right_line, (5) left_circle1 x right_circle1, (6) left_circle1 x right_circle2
                     // (7) left_circle2 x right_line, (8) left_circle2 x right_circle1, (9) left_circle2 x right_circle2
                     
-                    // sometimes, two of p1,p2,p3,p4 will be the same. Handle that here.
-                    if (p1 == p3)
-                    {
-                        // skip (1) left_line x right_line
-                        // skip (5) left_circle1 x right_circle1
-                        // (6)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
-                    }
-                    else if (p2 == p3)
-                    {
-                        // skip (1) left_line x right_line
-                        // skip (6) left_circle1 x right_circle2
-                        // (5)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
-                    }
-                    else
-                    {
-                        // (1)
-                        newly_added_points += add_line_x_line(_app_config->context, left_line, right_line);
-                        
-                        // (5)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
-                        
-                        // (6)
-                        newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
-                    }
-
-                    // always check everything else
-                        
                     // (1)
-                    // handled above
+                    newly_added_points += add_line_x_line(_app_config->context, left_line, right_line);
                         
                     // (2)
                     newly_added_points += add_circle_x_line(_app_config->context, right_circle1, left_line);
@@ -651,10 +630,10 @@ int main() {
                     newly_added_points += add_circle_x_line(_app_config->context, left_circle1, right_line);
                     
                     // (5)
-                    // handled above
+                    newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle1);
                     
                     // (6)
-                    // handled above
+                    newly_added_points += add_circle_x_circle(_app_config->context, left_circle1, right_circle2);
                     
                     // (7)
                     newly_added_points += add_circle_x_line(_app_config->context, left_circle2, right_line);
@@ -715,7 +694,7 @@ EXIT_LOOP:
     gettimeofday(&tv2, NULL);
     total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
     
-    db_context_commit(_app_config->context);
+    //db_context_commit(_app_config->context);
     
     // show results
     
