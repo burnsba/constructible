@@ -168,6 +168,7 @@ void load_starting_points(single_linked_list_t** p_starting_set, char* filename,
     size_t half_buffer_size = line_buffer_size / 2;
     ssize_t read_len;
     size_t buffer_len;
+    point_t* lookup_point;
     
     char* line_buffer = malloc(sizeof(char) * line_buffer_size);
     global_exit_if_null(line_buffer, "Fatal error calling malloc for line_buffer.\n");
@@ -216,7 +217,21 @@ void load_starting_points(single_linked_list_t** p_starting_set, char* filename,
         point_t* p1 = point_alloc();
         point_init(p1);
         point_set_str(p1, xbuff, ybuff);
-        single_linked_list_add(p_starting_set, p1, sizeof(single_linked_list_t));
+        
+        point_ensure_hash(p1);
+        HASH_FIND_STR(p_point_hash, p1->hash_key, lookup_point);
+        if (lookup_point == NULL) {
+            HASH_ADD_KEYPTR(
+                hh,
+                p_point_hash,
+                p1->hash_key,
+                p1->hash_key_length,
+                p1);
+                
+            single_linked_list_add(p_starting_set, p1, sizeof(single_linked_list_t));
+        } else {
+            point_free(p1);
+        }
     }
     
     fclose(fp);
@@ -302,7 +317,7 @@ int main() {
     // which should make a big difference in throughput, at the
     // risk of losing information (power failure, etc).
     // And of course, now need to explicitly commit changes.
-    //mysql_autocommit(_app_config->context->connection->con, 0);
+    mysql_autocommit(_app_config->context->connection->con, 0);
     
     // Check to see if there are any points to work with.
     count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_working);
@@ -680,8 +695,6 @@ int main() {
         db_checkin_work(_app_config->context, current_job);
         run_status_free(current_job);
         current_job = NULL;
-                
-        //db_context_commit(_app_config->context);
         
         if (_app_config->print_iteration_stats) {
             printf("results for iteration %d\n", _current_iteration);
@@ -701,6 +714,8 @@ EXIT_LOOP:
 
     gettimeofday(&tv2, NULL);
     total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
+    
+    db_context_commit(_app_config->context);
     
     // show results
     
@@ -728,6 +743,7 @@ EXIT_LOOP:
     do {
         if (starting_set != NULL) {
             point_free(starting_set->data);
+            starting_set->data = NULL;
         }
 
         result = single_linked_list_remove(&starting_set);
@@ -736,6 +752,7 @@ EXIT_LOOP:
     do {
         if (working_set != NULL) {
             point_free(working_set->data);
+            working_set->data = NULL;
         }
 
         result = single_linked_list_remove(&working_set);

@@ -116,10 +116,6 @@ int db_context_ini_parse_handler(void* config, const char* section, const char* 
         pconfig->db_table_name_status = strdup(value);
     } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "DB_POINT_CHAR_DIGITS") == 0) {
         pconfig->db_point_char_digits = atoi(value);
-    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "DB_POINT_DECIMAL_DIGITS_PRECISION") == 0) {
-        pconfig->db_point_decimal_digits_precision = atoi(value);
-    } else if (strcmp(section, INI_SECTION_NAME) == 0 && strcmp(name, "DB_POINT_DECIMAL_DIGITS_SCALE") == 0) {
-        pconfig->db_point_decimal_digits_scale = atoi(value);
     } else {
         return 0;  /* unknown section/name, error */
     }
@@ -140,8 +136,6 @@ void db_context_printf(db_context_t* context) {
     printf("db_table_name_known: '%s'\n", context->db_table_name_known);
     printf("db_table_name_status: '%s'\n", context->db_table_name_status);
     printf("db_point_char_digits: '%d'\n", context->db_point_char_digits);
-    printf("db_point_decimal_digits_precision: '%d'\n", context->db_point_decimal_digits_precision);
-    printf("db_point_decimal_digits_scale: '%d'\n", context->db_point_decimal_digits_scale);
 }
 
 /*
@@ -186,7 +180,7 @@ void db_context_commit(db_context_t* context) {
 int db_insert_known_set(db_context_t* context, point_t* p) {
     
     MYSQL_STMT  *stmt;
-    MYSQL_BIND  bind[4];
+    MYSQL_BIND  bind[2];
     size_t row_count = 0;
     size_t char_count = 0;
     
@@ -194,14 +188,10 @@ int db_insert_known_set(db_context_t* context, point_t* p) {
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
     char_count = sprintf(_buffer, 
-        "INSERT INTO `%s` (`x`,`y`,`xd`,`yd`) "
-        "VALUES (?,?,CAST(? AS DECIMAL(%d,%d)),CAST(? AS DECIMAL(%d,%d))) "
+        "INSERT INTO `%s` (`x`,`y`) "
+        "VALUES (?,?) "
         "ON DUPLICATE KEY UPDATE `id`=`id`;",
-        context->db_table_name_known,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale);
+        context->db_table_name_known);
         
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -229,18 +219,8 @@ int db_insert_known_set(db_context_t* context, point_t* p) {
     bind[1].is_null = 0;
     bind[1].length = &input_length;
     
-    bind[2].buffer_type = MYSQL_TYPE_STRING;
-    bind[2].buffer = (char *)(p->str_x);
-    bind[2].is_null = 0;
-    bind[2].length = &input_length;
-    
-    bind[3].buffer_type = MYSQL_TYPE_STRING;
-    bind[3].buffer = (char *)(p->str_y);
-    bind[3].is_null = 0;
-    bind[3].length = &input_length;
-    
     if (context->connection->verbose_level == 1) {
-        for (int i=0; i<4; i++) {
+        for (int i=0; i<2; i++) {
             printf("?.%d: %s\n", i, (char *)bind[i].buffer);
         }
     }
@@ -452,8 +432,8 @@ size_t db_get_working_set(db_context_t* context, single_linked_list_t** working_
 void db_copy_known_to_working(db_context_t* context, uint8_t iteration) {
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
     sprintf(_buffer, 
-        "INSERT INTO `%s` (`x`,`y`,`xd`,`yd`,`iteration_origin`) "
-        "SELECT `x`,`y`,`xd`,`yd`,%d FROM `%s` "
+        "INSERT INTO `%s` (`x`,`y`,`iteration_origin`) "
+        "SELECT `x`,`y`,%d FROM `%s` "
         "ON DUPLICATE KEY UPDATE `%s`.`id`=`%s`.`id`;",
         context->db_table_name_working,
         iteration,

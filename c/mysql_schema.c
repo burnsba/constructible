@@ -71,23 +71,14 @@ int main()
         "`id` BIGINT NOT NULL AUTO_INCREMENT, "
         "`x` CHAR(%d) ASCII NOT NULL, "
         "`y` CHAR(%d) ASCII NOT NULL, "
-        "`xd` DECIMAL(%d,%d) NOT NULL, "
-        "`yd` DECIMAL(%d,%d) NOT NULL, "
         "`iteration_origin` TINYINT NOT NULL, "
         "PRIMARY KEY (`id`), "
-        "INDEX `%s_idx_xd` (`xd`), "
-        "INDEX `%s_idx_yd` (`yd`), "
-        "UNIQUE (xd,yd)"
+        "UNIQUE (x,y)"
         ");",
         context->db_table_name_working,
         context->db_point_char_digits,
-        context->db_point_char_digits,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale,
-        context->db_table_name_working,
-        context->db_table_name_working);
+        context->db_point_char_digits
+        );
     printf("execute: %s\n", command);    
     if (mysql_query(context->connection->con, command)) {
         mysql_exit_error(context->connection);
@@ -99,22 +90,13 @@ int main()
         "`id` BIGINT NOT NULL AUTO_INCREMENT, "
         "`x` CHAR(%d) ASCII NOT NULL, "
         "`y` CHAR(%d) ASCII NOT NULL, "
-        "`xd` DECIMAL(%d,%d) NOT NULL, "
-        "`yd` DECIMAL(%d,%d) NOT NULL, "
         "PRIMARY KEY (`Id`), "
-        "INDEX `%s_idx_xd` (`xd`), "
-        "INDEX `%s_idx_yd` (`yd`), "
-        "UNIQUE (xd,yd)"
+        "UNIQUE (x,y)"
         ");",
         context->db_table_name_known,
         context->db_point_char_digits,
-        context->db_point_char_digits,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale,
-        context->db_point_decimal_digits_precision,
-        context->db_point_decimal_digits_scale,
-        context->db_table_name_known,
-        context->db_table_name_known);
+        context->db_point_char_digits
+        );
     printf("execute: %s\n", command);    
     if (mysql_query(context->connection->con, command)) {
         mysql_exit_error(context->connection);

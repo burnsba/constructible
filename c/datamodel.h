@@ -34,8 +34,6 @@ typedef struct db_context {
     char* db_table_name_known;
     char* db_table_name_status;
     int db_point_char_digits;
-    int db_point_decimal_digits_precision;
-    int db_point_decimal_digits_scale;
     
     mysql_connection_t* connection;
 } db_context_t;
