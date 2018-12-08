@@ -39,6 +39,20 @@ int add_line_x_line(db_context_t* context, line_t*, line_t*);
 int add_circle_x_line(db_context_t* context, circle_t*, line_t*);
 int add_circle_x_circle(db_context_t* context, circle_t*, circle_t*);
 
+void empty_point_hash_and_free(point_t** pph) {
+    
+    point_t* head = *pph;
+    point_t* p1;
+    point_t* p2;
+    
+    HASH_ITER(hh, head, p1, p2) {
+        HASH_DEL(head, p1);
+        point_free(p1);
+    }
+    // need to reset the head or get a segmentation fault ...
+    *pph = NULL;
+}
+
 int add_line_x_line(db_context_t* context, line_t* line_one, line_t* line_two) {
     point_t* ip1 = NULL;
     int newly_added_points = 0;
@@ -141,17 +155,24 @@ int add_to_known_and_free(db_context_t* context, point_t** p) {
     
     if (result > 0) {
         if (_app_config->max_point_cache > 0) {
+            
             lookup_count = HASH_COUNT(p_point_hash);
-            if (lookup_count < _app_config->max_point_cache) {
-                //printf("add point to cache       : %s\n", ip->hash_key);
-                HASH_ADD_KEYPTR(
-                    hh,
-                    p_point_hash,
-                    ip->hash_key,
-                    ip->hash_key_length,
-                    ip);
-                free_point = 0;
+            
+            if (lookup_count >= _app_config->max_point_cache) {
+                printf("known point hash full. Clearing and freeing contents.\n");
+                empty_point_hash_and_free(&p_point_hash);
             }
+            
+            //printf("add point to cache       : %s\n", ip->hash_key);
+            HASH_ADD_KEYPTR(
+                hh,
+                p_point_hash,
+                ip->hash_key,
+                ip->hash_key_length,
+                ip);
+
+            free_point = 0;
+            
         }
     }
     
@@ -737,10 +758,7 @@ EXIT_LOOP:
         result = single_linked_list_remove(&working_set);
     } while (1 == result);
     
-    HASH_ITER(hh, p_point_hash, p1, p2) {
-        HASH_DEL(p_point_hash, p1);
-        point_free(p1);
-    }
+    empty_point_hash_and_free(&p_point_hash);
 
     mpf_clear(d1);
     mpf_clear(d2);
