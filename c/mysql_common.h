@@ -60,6 +60,21 @@ void mysql_connection_printf(mysql_connection_t* connection);
 size_t mysql_get_table_count(mysql_connection_t* connection, char* table);
 
 /*
+* Executes a query to lock a specific table.
+*
+* @connection: mysql connection
+* @table: table to lock
+*/
+void mysql_lock_table(mysql_connection_t* connection, char* table_name);
+
+/*
+* Executes a query to unlock all tables.
+*
+* @connection: mysql connection
+*/
+void mysql_unlock_tables(mysql_connection_t* connection);
+
+/*
 * Alters current connection to check foreign keys or not.
 *
 * @connection: mysql connection.

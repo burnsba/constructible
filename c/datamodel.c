@@ -23,7 +23,7 @@
 #include "datamodel.h"
 #include "ini.h"
 
-#define COMMAND_BUFFER_SIZE 1024
+#define COMMAND_BUFFER_SIZE 8192
 #define INI_SECTION_NAME "mysql_schema"
 
 static char* _buffer = NULL;
@@ -192,6 +192,11 @@ int db_insert_known_set(db_context_t* context, point_t* p) {
         "VALUES (?,?) "
         "ON DUPLICATE KEY UPDATE `id`=`id`;",
         context->db_table_name_known);
+    
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_insert_known_set).\n");
+        exit(1);
+    }
         
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -241,8 +246,133 @@ int db_insert_known_set(db_context_t* context, point_t* p) {
         mysql_exit_error(context->connection);
     }
     
+    p->in_datastore = 1;
+    
     // Insert will add either zero or one rows, so this is safe 
     // to cast down to int from size_t.
+    return (int)row_count;
+}
+
+#define DB_INSERT_MANY_KNOWN_SET_SQL1 "INSERT INTO `%s` (`x`,`y`) VALUES "
+#define DB_INSERT_MANY_KNOWN_SET_SQL2 "(?,?), "
+#define DB_INSERT_MANY_KNOWN_SET_SQL3 "(?,?) "
+#define DB_INSERT_MANY_KNOWN_SET_SQL4 "ON DUPLICATE KEY UPDATE `id`=`id`"
+/*
+* Inserts many points into the known set table.
+*
+* @context: database context.
+* @points: list of points to add.
+*
+* returns: the number of points added.
+*/
+int db_insert_many_known_set(db_context_t* context, single_linked_list_t* points) {
+    
+    if (points == NULL) {
+        return 0;
+    }
+    
+    MYSQL_STMT  *stmt;
+    MYSQL_BIND  *bind;
+    size_t row_count = 0;
+    size_t char_count = 0;
+    size_t points_length = 0;
+    size_t len;
+    
+    points_length = points->index + 1;
+    //printf("points_length: %zu\n", points_length);
+    
+    // This is times 2, because both `x` and `y` are parameters.
+    bind = malloc(2 * points_length * sizeof(MYSQL_BIND));
+    global_exit_if_null(bind, "Fatal error calling malloc for db_insert_many_known_set.\n");
+    memset(bind, 0, 2 * points_length * sizeof(MYSQL_BIND));
+    
+    // INSERT INTO `%s` (`x`,`y`) 
+    // VALUES (?,?), ...
+    // VALUES (?,?) 
+    // ON DUPLICATE KEY UPDATE `id`=`id`
+    memset(_buffer, 0, COMMAND_BUFFER_SIZE);
+    len = strlen(DB_INSERT_MANY_KNOWN_SET_SQL2);
+    char_count = sprintf(_buffer, DB_INSERT_MANY_KNOWN_SET_SQL1, context->db_table_name_known);
+    if (points_length > 1) {
+        for (size_t i=points_length; i>1; i--) {
+            strcat(_buffer, DB_INSERT_MANY_KNOWN_SET_SQL2);
+            char_count += len;
+        }
+    }
+    strcat(_buffer, DB_INSERT_MANY_KNOWN_SET_SQL3);
+    char_count += strlen(DB_INSERT_MANY_KNOWN_SET_SQL3);
+    strcat(_buffer, DB_INSERT_MANY_KNOWN_SET_SQL4);
+    char_count += strlen(DB_INSERT_MANY_KNOWN_SET_SQL4);
+    
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_insert_many_known_set).\n");
+        exit(1);
+    }
+        
+    if (context->connection->verbose_level == 1) {
+        printf("execute: %s\n", _buffer);
+    }
+    
+    stmt = mysql_stmt_init(context->connection->con);
+    
+    global_exit_if_null(stmt, "mysql_stmt_init(), out of memory\n");
+    
+    if (mysql_stmt_prepare(stmt, _buffer, char_count)) {
+        mysql_stmt_exit_error(context->connection, stmt);
+    }
+
+    // bind parameters
+    
+    unsigned long input_length = context->db_point_char_digits;
+    size_t bind_index = 0;
+    single_linked_list_t* node;
+    
+    for (node = points; node != NULL; node = node->next) {
+        //printf("node ...\n");
+        point_t* p = (point_t*)node->data;
+        point_ensure_hash(p);
+        
+        bind[bind_index].buffer_type = MYSQL_TYPE_STRING;
+        bind[bind_index].buffer = (char *)(p->str_x);
+        bind[bind_index].is_null = 0;
+        bind[bind_index].length = &input_length;
+        
+        bind[bind_index+1].buffer_type = MYSQL_TYPE_STRING;
+        bind[bind_index+1].buffer = (char *)(p->str_y);
+        bind[bind_index+1].is_null = 0;
+        bind[bind_index+1].length = &input_length;
+        
+        bind_index += 2;
+    }
+    
+    if (context->connection->verbose_level == 1) {
+        for (size_t i=0; i<bind_index; i++) {
+            printf("?.%zu: %s\n", i, (char *)bind[i].buffer);
+        }
+    }
+
+    // done binding parameters
+    
+    if (mysql_stmt_bind_param(stmt, bind)) {
+        mysql_stmt_exit_error(context->connection, stmt);
+    }
+
+    if (mysql_stmt_execute(stmt)) {
+        mysql_stmt_exit_error(context->connection, stmt);
+    }
+    
+    row_count = mysql_stmt_affected_rows(stmt);
+        
+    if (mysql_stmt_close(stmt)) {
+        mysql_exit_error(context->connection);
+    }
+    
+    for (node = points; node != NULL; node = node->next) {
+        point_t* p = (point_t*)node->data;
+        p->in_datastore = 1;
+    }
+    
+    // So, hopefully this won't overflow...
     return (int)row_count;
 }
 
@@ -272,6 +402,11 @@ void db_update_run_status(db_context_t* context, run_status_t* status) {
         "WHERE `id`=?",
         context->db_table_name_status
         );
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_update_run_status).\n");
+        exit(1);
+    }
         
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -380,14 +515,20 @@ void db_update_run_status(db_context_t* context, run_status_t* status) {
 */
 size_t db_get_working_set(db_context_t* context, single_linked_list_t** working_set, int64_t after) {
     int64_t point_id;
+    size_t char_count = 0;
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "SELECT `x`,`y`,`id` FROM `%s` "
         "WHERE `id` >= %ld "
         "ORDER BY `x`,`y`;",
         context->db_table_name_working,
         after);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_get_working_set).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -430,8 +571,10 @@ size_t db_get_working_set(db_context_t* context, single_linked_list_t** working_
 * @context: context to use.
 */
 void db_copy_known_to_working(db_context_t* context, uint8_t iteration) {
+    size_t char_count;
+    
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "INSERT INTO `%s` (`x`,`y`,`iteration_origin`) "
         "SELECT `x`,`y`,%d FROM `%s` "
         "ON DUPLICATE KEY UPDATE `%s`.`id`=`%s`.`id`;",
@@ -440,6 +583,11 @@ void db_copy_known_to_working(db_context_t* context, uint8_t iteration) {
         context->db_table_name_known,
         context->db_table_name_working,
         context->db_table_name_working);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_copy_known_to_working).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -461,18 +609,24 @@ void db_get_root_batch_status(db_context_t* context, int batch_id, root_batch_st
     MYSQL_RES *mysql_result;
     MYSQL_ROW row;
     int8_t result;
+    size_t char_count;
     
     memset(status, 0, sizeof(root_batch_status_t));
     
     // Get last_complete_iteration
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "SELECT MAX(`iteration`) FROM `%s` "
         "WHERE `is_done` = 1 "
         "AND `batch_id` = %d",
         context->db_table_name_status,
         batch_id);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_get_root_batch_status).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -505,13 +659,18 @@ void db_get_root_batch_status(db_context_t* context, int batch_id, root_batch_st
     // get is_currently_running
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "SELECT MAX(`id`) FROM `%s` "
         "WHERE `is_done` = 0 "
         "AND `is_running` = 1 "
         "AND `batch_id` = %d",
         context->db_table_name_status,
         batch_id);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_get_root_batch_status).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -543,12 +702,17 @@ void db_get_root_batch_status(db_context_t* context, int batch_id, root_batch_st
     // get any_incomplete
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "SELECT MAX(`id`) FROM `%s` "
         "WHERE `is_done` = 0 "
         "AND `batch_id` = %d",
         context->db_table_name_status,
         batch_id);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_get_root_batch_status).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -600,6 +764,11 @@ size_t db_create_tasks(db_context_t* context, int batch_id, int8_t iteration) {
         "SELECT ?,`id`,? FROM `%s`",
         context->db_table_name_status,
         context->db_table_name_working);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_create_tasks).\n");
+        exit(1);
+    }
         
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -661,11 +830,17 @@ run_status_t* db_checkout_work(db_context_t* context, int batch_id, int16_t clie
     MYSQL_RES *mysql_result;
     MYSQL_ROW row;
     run_status_t *result = NULL;
+    size_t char_count;
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "LOCK TABLES `%s` WRITE;",
         context->db_table_name_status);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_checkout_work).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -677,7 +852,7 @@ run_status_t* db_checkout_work(db_context_t* context, int batch_id, int16_t clie
     // do stuff
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, 
+    char_count = sprintf(_buffer, 
         "SELECT `id`,`point_id` FROM `%s` "
         "WHERE `client_id` IS NULL "
         "AND `batch_id` = %d "
@@ -685,6 +860,11 @@ run_status_t* db_checkout_work(db_context_t* context, int batch_id, int16_t clie
         "LIMIT 1;",
         context->db_table_name_status,
         batch_id);
+        
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_checkout_work).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);
@@ -732,7 +912,12 @@ run_status_t* db_checkout_work(db_context_t* context, int batch_id, int16_t clie
     // done.
     
     memset(_buffer, 0, COMMAND_BUFFER_SIZE);
-    sprintf(_buffer, "UNLOCK TABLES;");
+    char_count = sprintf(_buffer, "UNLOCK TABLES;");
+       
+    if (char_count > COMMAND_BUFFER_SIZE) {
+        global_error_printf("SQL statement exceeds command buffer length (db_checkout_work).\n");
+        exit(1);
+    }
 
     if (context->connection->verbose_level == 1) {
         printf("execute: %s\n", _buffer);

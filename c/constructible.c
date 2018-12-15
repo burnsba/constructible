@@ -32,7 +32,16 @@ uint8_t _current_iteration = 0;
 int8_t _v = 0;
 
 // global memory cache of known points
-point_t* p_point_hash = NULL;
+point_t* _p_point_hash = NULL;
+
+// Variables for watching elapsed time since last 
+// status update.
+struct timespec _ts_start;
+struct timespec _ts_current;
+struct timespec _next_status_update_time;
+struct timespec _benchmark_time;
+struct timespec _checkpoint_time;
+time_t _total_elapsed;
 
 int add_to_known_and_free(db_context_t* context, point_t** p);
 int add_line_x_line(db_context_t* context, line_t*, line_t*);
@@ -126,6 +135,85 @@ int add_circle_x_circle(db_context_t* context, circle_t* c1, circle_t* c2) {
     return newly_added_points;
 }
 
+int db_point_cache_flush(db_context_t* context) {
+    point_t* p1;
+    point_t* p2;
+    int result = 0;
+    size_t lookup_count;
+    size_t iteration = 0;
+    
+    lookup_count = HASH_COUNT(_p_point_hash);
+    if (lookup_count == 0) {
+        return 0;
+    }
+    
+    single_linked_list_t* points = NULL;
+    
+    printf("begin db_point_cache_flush\n");
+    
+    mysql_autocommit(context->connection->con, 0);
+    mysql_lock_table(context->connection, context->db_table_name_known);
+    
+    HASH_ITER(hh, _p_point_hash, p1, p2) {
+        iteration++;
+        
+        clock_gettime(CLOCK_MONOTONIC, &_ts_current);
+        _total_elapsed = _ts_current.tv_sec - _ts_start.tv_sec;
+        
+        if (_app_config->update_interval_sec > 0 
+                    && _ts_current.tv_sec > _next_status_update_time.tv_sec) {
+            clock_gettime(CLOCK_MONOTONIC, &_next_status_update_time);
+            _next_status_update_time.tv_sec += _app_config->update_interval_sec;
+            
+            printf("%zu: hash iteration %zu of %zu \n",
+                _total_elapsed,
+                iteration,
+                lookup_count
+            );
+        }
+        
+        if (p1->in_datastore == 0) {
+            
+            single_linked_list_add(&points, p1, sizeof(single_linked_list_t));
+            
+            // Max number of points to write in one sql command
+            if (points->index == 31) {
+                result += db_insert_many_known_set(context, points);
+                
+                while (1 == single_linked_list_remove(&points))
+                    ;
+                points = NULL;
+            }
+        }
+    }
+    
+    result += db_insert_many_known_set(context, points);
+    
+    while (1 == single_linked_list_remove(&points))
+        ;
+    points = NULL;
+    
+    lookup_count = HASH_COUNT(_p_point_hash);
+    if (lookup_count >= _app_config->max_point_cache) {
+        printf("known point hash full. Clearing and freeing contents.\n");
+        
+        HASH_ITER(hh, _p_point_hash, p1, p2) {
+            HASH_DEL(_p_point_hash, p1);
+            point_free(p1);
+        }
+        
+    }
+    
+    db_context_commit(context);
+    mysql_autocommit(context->connection->con, 1);
+    
+    mysql_unlock_tables(context->connection);
+    
+    printf("end db_point_cache_flush\n");
+    
+    return result;
+}
+
 // returns the number of added points
 int add_to_known_and_free(db_context_t* context, point_t** p) {
     point_t* ip = *p;
@@ -142,38 +230,31 @@ int add_to_known_and_free(db_context_t* context, point_t** p) {
     
     if (_app_config->max_point_cache > 0) {
         //printf("looking up point in cache: %s\n", ip->hash_key);
-        HASH_FIND_STR(p_point_hash, ip->hash_key, lookup_point);
+        HASH_FIND_STR(_p_point_hash, ip->hash_key, lookup_point);
         if (lookup_point != NULL) {
             //printf("found point in memory\n");
             point_free(ip);
             *p = NULL;
             return 0;
         }
-    }
-    
-    result = db_insert_known_set(context, ip);
-    
-    if (result > 0) {
-        if (_app_config->max_point_cache > 0) {
             
-            lookup_count = HASH_COUNT(p_point_hash);
-            
-            if (lookup_count >= _app_config->max_point_cache) {
-                printf("known point hash full. Clearing and freeing contents.\n");
-                empty_point_hash_and_free(&p_point_hash);
-            }
-            
-            //printf("add point to cache       : %s\n", ip->hash_key);
-            HASH_ADD_KEYPTR(
-                hh,
-                p_point_hash,
-                ip->hash_key,
-                ip->hash_key_length,
-                ip);
-
-            free_point = 0;
-            
+        lookup_count = HASH_COUNT(_p_point_hash);
+        
+        if (lookup_count >= _app_config->max_point_cache) {
+            result = db_point_cache_flush(context);
         }
+        
+        //printf("add point to cache       : %s\n", ip->hash_key);
+        HASH_ADD_KEYPTR(
+            hh,
+            _p_point_hash,
+            ip->hash_key,
+            ip->hash_key_length,
+            ip);
+
+        free_point = 0;
+    } else {
+        result = db_insert_known_set(context, ip);
     }
     
     if (free_point > 0) {
@@ -240,11 +321,11 @@ void load_starting_points(single_linked_list_t** p_starting_set, char* filename,
         point_set_str(p1, xbuff, ybuff);
         
         point_ensure_hash(p1);
-        HASH_FIND_STR(p_point_hash, p1->hash_key, lookup_point);
+        HASH_FIND_STR(_p_point_hash, p1->hash_key, lookup_point);
         if (lookup_point == NULL) {
             HASH_ADD_KEYPTR(
                 hh,
-                p_point_hash,
+                _p_point_hash,
                 p1->hash_key,
                 p1->hash_key_length,
                 p1);
@@ -315,13 +396,6 @@ int main() {
     // Iterate the working_set 4 times, one for each point.
     single_linked_list_t* p1_node, *p2_node, *p3_node, *p4_node;
     
-    // Variables for watching elapsed time since last 
-    // status update.
-    struct timeval start_tv, tv2;
-    double next_status_update_time;
-    double next_checkpoint_time;
-    double total_elapsed;
-    
     size_t loop4_count = 0;
     
     // Current assigned work.
@@ -346,7 +420,7 @@ int main() {
     count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_working);
     
     // (set the start time once, in case client quits early).
-    gettimeofday(&start_tv, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &_ts_start);
     
     if (count == 0) {
         // regular client can't do anything about no points, so quit.
@@ -377,10 +451,16 @@ int main() {
     }
     
     // Set time values for status updates.
-    gettimeofday(&start_tv, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &_ts_start);
     
-    next_status_update_time = (double)(start_tv.tv_sec) + (double)(_app_config->update_interval_sec);
-    next_checkpoint_time = (double)(start_tv.tv_sec) + (double)(_app_config->checkpoint_interval_sec);
+    clock_gettime(CLOCK_MONOTONIC, &_next_status_update_time);
+    _next_status_update_time.tv_sec += _app_config->update_interval_sec;
+    
+    clock_gettime(CLOCK_MONOTONIC, &_benchmark_time);
+    _benchmark_time.tv_sec += _app_config->benchmark_time_sec;
+    
+    clock_gettime(CLOCK_MONOTONIC, &_checkpoint_time);
+    _checkpoint_time.tv_sec += _app_config->checkpoint_interval_sec;
     
     // Ready to start. On to main loop.
     // Book keeping in outer main loop.
@@ -524,16 +604,16 @@ int main() {
                         continue;
                     }
                     
-                    gettimeofday(&tv2, NULL);
-                    total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
+                    clock_gettime(CLOCK_MONOTONIC, &_ts_current);
+                    _total_elapsed = _ts_current.tv_sec - _ts_start.tv_sec;
                     
                     // Check for benchmark to exit early.
                     if (_app_config->benchmark_time_sec > 0 
-                                && total_elapsed > (double)(_app_config->benchmark_time_sec)) {
+                                && _ts_current.tv_sec > _benchmark_time.tv_sec) {
                         count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
-                        printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n"
+                        printf("%zu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n"
                         "BENCHMARK_TIME_SEC exceeded, exiting.\n",
-                            (long long unsigned)total_elapsed,
+                            _total_elapsed,
                             p1_count,
                             p1_node->index,
                             p2_count,
@@ -550,12 +630,17 @@ int main() {
                     
                     // Check for status update.
                     if (_app_config->update_interval_sec > 0 
-                                && (double)(tv2.tv_sec) > next_status_update_time) {
-                        next_status_update_time = (double)(next_status_update_time) + (double)(_app_config->update_interval_sec);
+                                && _ts_current.tv_sec > _next_status_update_time.tv_sec) {
+                        //printf("_ts_current.tv_sec: %zu\n", _ts_current.tv_sec);
+                        
+                        clock_gettime(CLOCK_MONOTONIC, &_next_status_update_time);
+                        _next_status_update_time.tv_sec += _app_config->update_interval_sec;
+                        
+                        //printf("_next_status_update_time.tv_sec: %zu\n", _next_status_update_time.tv_sec);
                         
                         count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
-                        printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
-                        (long long unsigned)total_elapsed,
+                        printf("%zu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                        _total_elapsed,
                         p1_count,
                         p1_node->index,
                         p2_count,
@@ -571,8 +656,9 @@ int main() {
                     
                     // Check for checkpoint save.
                     if (_app_config->checkpoint_interval_sec > 0 
-                                && (double)(tv2.tv_sec) > next_checkpoint_time) {
-                        next_checkpoint_time = (double)(next_checkpoint_time) + (double)(_app_config->checkpoint_interval_sec);
+                                && _ts_current.tv_sec > _checkpoint_time.tv_sec) {
+                        clock_gettime(CLOCK_MONOTONIC, &_checkpoint_time);
+                        _checkpoint_time.tv_sec += _app_config->checkpoint_interval_sec;
                         
                         printf("(checkpoint)\n");
                         //count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
@@ -587,8 +673,8 @@ int main() {
                         //_save_context->p4_count = p4_count;
                         //_save_context->p4_index = p4_node->index;
                         //
-                        //printf("%llu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
-                        //    (long long unsigned)total_elapsed,
+                        //printf("%zu: p1=(%zu,%zu) p2=(%zu,%zu) p3=(%zu,%zu) p4=(%zu,%zu) working_set length=%zu, known_points=%zu\n",
+                        //    _total_elapsed,
                         //    _save_context->p1_count,
                         //    _save_context->p1_index,
                         //    _save_context->p2_count,
@@ -605,6 +691,8 @@ int main() {
 
                         //mysql_commit(_app_config->context->connection->con);
                     }
+                    
+                    fflush(stdout);
                     
                     p4 = (point_t*)p4_node->data;
                     
@@ -691,6 +779,8 @@ int main() {
             circle_free(left_circle2);
         }
         
+        db_point_cache_flush(_app_config->context);
+        
         // Done with work.
         db_checkin_work(_app_config->context, current_job);
         run_status_free(current_job);
@@ -712,20 +802,22 @@ int main() {
     
 EXIT_LOOP:
 
-    gettimeofday(&tv2, NULL);
-    total_elapsed = (double)(tv2.tv_sec - start_tv.tv_sec);
+    db_point_cache_flush(_app_config->context);
+
+    clock_gettime(CLOCK_MONOTONIC, &_ts_current);
+    _total_elapsed = _ts_current.tv_sec - _ts_start.tv_sec;
     
     //db_context_commit(_app_config->context);
     
     // show results
     
     if (_app_config->max_point_cache > 0) {
-        size_t lookup_count = HASH_COUNT(p_point_hash);
+        size_t lookup_count = HASH_COUNT(_p_point_hash);
         printf("number of points cached in memory: %zu\n", lookup_count);
     }
     
     printf("loop4_count: %zu\n", loop4_count);
-    printf("primary run time: %llu seconds.\n", (long long unsigned)total_elapsed);
+    printf("primary run time: %zu seconds.\n", _total_elapsed);
     
     if (_app_config->client_id == ROOT_CLIENT_ID) {
         count = mysql_get_table_count(_app_config->context->connection, _app_config->context->db_table_name_known);
@@ -758,7 +850,7 @@ EXIT_LOOP:
         result = single_linked_list_remove(&working_set);
     } while (1 == result);
     
-    empty_point_hash_and_free(&p_point_hash);
+    empty_point_hash_and_free(&_p_point_hash);
 
     mpf_clear(d1);
     mpf_clear(d2);

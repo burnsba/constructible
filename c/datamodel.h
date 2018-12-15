@@ -141,6 +141,16 @@ void db_context_commit(db_context_t* context);
 int db_insert_known_set(db_context_t* context, point_t* p);
 
 /*
+* Inserts many points into the known set table.
+*
+* @context: database context.
+* @points: list of points to add.
+*
+* returns: the number of points added.
+*/
+int db_insert_many_known_set(db_context_t* context, single_linked_list_t* points);
+
+/*
 * Updates an existing run_status.
 *
 * @context: database context.

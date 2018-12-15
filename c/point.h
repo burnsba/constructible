@@ -45,6 +45,10 @@ typedef struct point {
     
     size_t hash_key_length;
     
+    // Whether the point has been written to the datastore.
+    // 0 if this is only in memory, 1 if it has been written.
+    int in_datastore;
+    
 } point_t;
 
 /*

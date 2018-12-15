@@ -152,6 +152,43 @@ size_t mysql_get_table_count(mysql_connection_t* connection, char* table) {
 }
 
 /*
+* Executes a query to lock a specific table.
+*
+* @connection: mysql connection
+* @table: table to lock
+*/
+void mysql_lock_table(mysql_connection_t* connection, char* table_name) {
+    char buffer[STACK_BUFFER_SIZE];
+    memset(buffer, 0, STACK_BUFFER_SIZE);
+    sprintf(buffer, "LOCK TABLES `%s` WRITE;", table_name);
+    
+    if (connection->verbose_level == 1) {
+        printf("execute: %s\n", buffer);
+    }
+    if (mysql_query(connection->con, buffer)) {
+        mysql_exit_error(connection);
+    }
+}
+
+/*
+* Executes a query to unlock all tables.
+*
+* @connection: mysql connection
+*/
+void mysql_unlock_tables(mysql_connection_t* connection) {
+    char buffer[STACK_BUFFER_SIZE];
+    memset(buffer, 0, STACK_BUFFER_SIZE);
+    sprintf(buffer, "UNLOCK TABLES;");
+    
+    if (connection->verbose_level == 1) {
+        printf("execute: %s\n", buffer);
+    }
+    if (mysql_query(connection->con, buffer)) {
+        mysql_exit_error(connection);
+    }
+}
+
+/*
 * Alters current connection to check foreign keys or not.
 *
 * @connection: mysql connection.

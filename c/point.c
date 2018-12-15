@@ -157,6 +157,8 @@ void point_free(point_t* p) {
 * @copy_from: Point x,y values are copied from.
 */
 void point_copy(point_t* copy_to, point_t* copy_from) {
+    assert(copy_to != NULL);
+    assert(copy_from != NULL);
     assert(copy_to->is_init == IS_INIT);
     assert(copy_from->is_init == IS_INIT);
     
@@ -202,6 +204,7 @@ point_t* point_clone(point_t* p) {
 * @y: y value.
 */
 void point_set(point_t* p, mpf_t x, mpf_t y) {
+    assert(p != NULL);
     assert(p->is_init == IS_INIT);
     
     mpf_set(p->x, x);
@@ -221,6 +224,7 @@ void point_set(point_t* p, mpf_t x, mpf_t y) {
 * @y: y value.
 */
 void point_set_si(point_t* p, intmax_t x, intmax_t y) {
+    assert(p != NULL);
     assert(p->is_init == IS_INIT);
     
     mpf_set_si(p->x, x);
@@ -240,6 +244,7 @@ void point_set_si(point_t* p, intmax_t x, intmax_t y) {
 * @y: y value.
 */
 void point_set_str(point_t* p, const char *x, const char *y) {
+    assert(p != NULL);
     assert(p->is_init == IS_INIT);
     
     mpf_set_str(p->x, x, 10);
@@ -257,6 +262,7 @@ void point_set_str(point_t* p, const char *x, const char *y) {
 * @p: Point to update hash key.
 */
 void point_ensure_hash(point_t* p) {
+    assert(p != NULL);
     _set_hash_id(p);
 }
 
@@ -301,6 +307,8 @@ static void _set_hash_id(point_t* p) {
 * @p2: Second point.
 */
 void point_distance(mpf_t rop, point_t* p1, point_t* p2) {
+    assert(p1 != NULL);
+    assert(p2 != NULL);
     assert(p1->is_init == IS_INIT);
     assert(p2->is_init == IS_INIT);
     
